@@ -2,10 +2,15 @@
 
 declare(strict_types=1);
 
-namespace JooServices\LaravelConfig;
+namespace JOOservices\LaravelConfig;
 
 use Illuminate\Support\ServiceProvider;
-use JooServices\LaravelConfig\Services\ConfigService;
+use JOOservices\LaravelConfig\Console\Commands\EnsureConfigIndexCommand;
+use JOOservices\LaravelConfig\Console\Commands\ForgetConfigCommand;
+use JOOservices\LaravelConfig\Console\Commands\GetConfigCommand;
+use JOOservices\LaravelConfig\Console\Commands\RefreshConfigCommand;
+use JOOservices\LaravelConfig\Console\Commands\SetConfigCommand;
+use JOOservices\LaravelConfig\Services\ConfigService;
 
 class ConfigServiceProvider extends ServiceProvider
 {
@@ -22,6 +27,14 @@ class ConfigServiceProvider extends ServiceProvider
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
+            $this->commands([
+                GetConfigCommand::class,
+                SetConfigCommand::class,
+                ForgetConfigCommand::class,
+                RefreshConfigCommand::class,
+                EnsureConfigIndexCommand::class,
+            ]);
+
             $this->publishes([
                 __DIR__.'/../config/config-store.php' => config_path('config-store.php'),
             ], 'config-store-config');

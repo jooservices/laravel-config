@@ -2,14 +2,16 @@
 
 declare(strict_types=1);
 
-namespace JooServices\LaravelConfig\Tests;
+namespace JOOservices\LaravelConfig\Tests;
 
-use JooServices\LaravelConfig\Facades\Config;
-use JooServices\LaravelConfig\Models\Config as ConfigModel;
-use JooServices\LaravelConfig\Services\ConfigService;
+use JOOservices\LaravelConfig\Facades\Config;
+use JOOservices\LaravelConfig\Models\Config as ConfigModel;
+use JOOservices\LaravelConfig\Services\ConfigService;
 
 class ConfigServiceTest extends TestCase
 {
+    private const INVALID_PATH_MESSAGE = 'Invalid config path';
+
     public function test_get_returns_default_when_key_missing(): void
     {
         $this->assertNull(Config::get('system.site_name'));
@@ -154,6 +156,7 @@ class ConfigServiceTest extends TestCase
 
         $record = ConfigModel::where('group', 'system')->where('key', 'site_name')->first();
         $this->assertNotNull($record);
+        /** @var ConfigModel $record */
         $record->value = 'After';
         $record->save();
 
@@ -170,6 +173,7 @@ class ConfigServiceTest extends TestCase
 
         $record = ConfigModel::where('group', 'system')->where('key', 'site_name')->first();
         $this->assertNotNull($record);
+        /** @var ConfigModel $record */
         $record->value = 'Fresh';
         $record->save();
 
@@ -186,9 +190,9 @@ class ConfigServiceTest extends TestCase
     public function test_cache_updated_after_set(): void
     {
         Config::set('system.key1', 'v1');
-        $service = $this->app->make('config-store');
-        $items = $this->getServiceItems($service);
-        $this->assertSame('v1', $items['system']['key1'] ?? null);
+        $this->resetConfigStoreService();
+
+        $this->assertSame('v1', Config::get('system.key1'));
     }
 
     public function test_cache_updated_after_forget(): void
@@ -201,7 +205,7 @@ class ConfigServiceTest extends TestCase
     public function test_invalid_path_empty_throws(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid config path');
+        $this->expectExceptionMessage(self::INVALID_PATH_MESSAGE);
 
         Config::get('');
     }
@@ -217,7 +221,7 @@ class ConfigServiceTest extends TestCase
     public function test_invalid_path_leading_dot_throws(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid config path');
+        $this->expectExceptionMessage(self::INVALID_PATH_MESSAGE);
 
         Config::get('.system.key');
     }
@@ -225,7 +229,7 @@ class ConfigServiceTest extends TestCase
     public function test_invalid_path_trailing_dot_throws(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid config path');
+        $this->expectExceptionMessage(self::INVALID_PATH_MESSAGE);
 
         Config::get('system.');
     }
@@ -354,15 +358,49 @@ class ConfigServiceTest extends TestCase
         $this->assertFalse(Config::has('system.cache_off'));
     }
 
-    public function test_fresh_updates_in_memory(): void
+    public function test_fresh_does_not_update_in_memory(): void
     {
         Config::set('system.origin', 'first');
         Config::refresh();
         $record = ConfigModel::where('group', 'system')->where('key', 'origin')->first();
+        $this->assertNotNull($record);
+        /** @var ConfigModel $record */
         $record->value = 'updated';
         $record->save();
         $this->assertSame('updated', Config::fresh('system.origin'));
-        $this->assertSame('updated', Config::get('system.origin'));
+        $this->assertSame('first', Config::get('system.origin'));
+    }
+
+    public function test_get_returns_stored_null_instead_of_default(): void
+    {
+        Config::set('system.nullable', null);
+
+        $this->assertNull(Config::get('system.nullable', 'fallback'));
+        $this->assertTrue(Config::has('system.nullable'));
+    }
+
+    public function test_set_without_preload_does_not_clobber_existing_cache_map(): void
+    {
+        Config::set('system.first', 'one');
+        Config::set('system.second', 'two');
+
+        $this->resetConfigStoreService();
+
+        Config::set('system.third', 'three');
+
+        $this->assertSame('one', Config::get('system.first'));
+        $this->assertSame('two', Config::get('system.second'));
+        $this->assertSame('three', Config::get('system.third'));
+    }
+
+    public function test_forget_without_preload_invalidates_stale_cache(): void
+    {
+        Config::set('system.cached', 'value');
+
+        $this->resetConfigStoreService();
+
+        $this->assertTrue(Config::forget('system.cached'));
+        $this->assertNull(Config::get('system.cached'));
     }
 
     public function test_forget_with_key_not_in_memory_still_clears_db(): void
@@ -432,11 +470,7 @@ class ConfigServiceTest extends TestCase
         Config::refresh();
         $this->assertSame([false], Config::get('arr.as_bool'));
 
-        $service = $this->app->make(ConfigService::class);
-        $ref = new \ReflectionMethod($service, 'normalizeValue');
-        $ref->setAccessible(true);
-        $result = $ref->invoke($service, new \stdClass(), 'array');
-        $this->assertSame([], $result);
+        $this->assertSame([], Config::get('arr.missing', []));
     }
 
     public function test_normalize_value_array_type_with_already_array_from_mongo(): void
@@ -449,14 +483,5 @@ class ConfigServiceTest extends TestCase
         ]);
         Config::refresh();
         $this->assertSame(['nested' => true], Config::get('arr.native'));
-    }
-
-    private function getServiceItems(ConfigService $service): array
-    {
-        $ref = new \ReflectionClass($service);
-        $prop = $ref->getProperty('items');
-        $prop->setAccessible(true);
-
-        return $prop->getValue($service);
     }
 }

@@ -1,15 +1,19 @@
 {
     "name": "jooservices/laravel-config",
-    "version": "1.0.0",
     "description": "Store and retrieve application configuration in database (MongoDB) with caching.",
+    "type": "library",
     "keywords": ["laravel", "config", "mongodb", "configuration"],
     "license": "MIT",
     "authors": [
         {
-            "name": "Viet Vu",
-            "email": "jooservices@gmail.com"
+            "name": "JOOservices",
+            "email": "admin@jooservices.com"
         }
     ],
+    "support": {
+        "issues": "https://github.com/jooservices/laravel-config/issues",
+        "source": "https://github.com/jooservices/laravel-config"
+    },
     "require": {
         "php": "^8.5",
         "illuminate/support": "^11.0|^12.0",
@@ -28,33 +32,51 @@
     },
     "autoload": {
         "psr-4": {
-            "JooServices\\LaravelConfig\\": "src/"
+            "JOOservices\\LaravelConfig\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "JooServices\\LaravelConfig\\Tests\\": "tests/"
+            "JOOservices\\LaravelConfig\\Tests\\": "tests/"
         }
     },
     "scripts": {
         "test": "vendor/bin/phpunit",
         "test:coverage": "vendor/bin/phpunit --coverage-text",
+        "lint:pint": "vendor/bin/pint --test",
+        "lint:pint:fix": "vendor/bin/pint",
+        "lint:phpstan": "XDEBUG_MODE=off vendor/bin/phpstan analyse --memory-limit=256M",
+        "lint:phpmd": "php -d error_reporting=6143 vendor/bin/phpmd src text phpmd.xml",
+        "lint:phpcs": "vendor/bin/phpcs src tests --standard=phpcs.xml",
         "lint": [
             "@lint:pint",
-            "@lint:phpstan",
-            "@lint:phpmd",
-            "@lint:phpcs"
+            "@lint:phpcs",
+            "@lint:phpstan"
         ],
-        "lint:fix": "vendor/bin/pint",
-        "lint:pint": "vendor/bin/pint",
-        "lint:phpstan": "vendor/bin/phpstan analyse --memory-limit=256M",
-        "lint:phpmd": "vendor/bin/phpmd src text phpmd.xml",
-        "lint:phpcs": "vendor/bin/phpcs src tests --standard=phpcs.xml"
+        "lint:all": [
+            "@lint",
+            "@lint:phpmd"
+        ],
+        "lint:fix": [
+            "@lint:pint:fix"
+        ],
+        "check": [
+            "@lint:all",
+            "@test"
+        ],
+        "ci": [
+            "@lint:all",
+            "@test:coverage"
+        ]
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {}
     },
     "extra": {
         "laravel": {
             "providers": [
-                "JooServices\\LaravelConfig\\ConfigServiceProvider"
+                "JOOservices\\LaravelConfig\\ConfigServiceProvider"
             ]
         }
     },

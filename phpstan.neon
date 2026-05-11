@@ -4,4 +4,3 @@ parameters:
     level: 5
     ignoreErrors:
         - '#Static call to instance method#'
-        - '#Access to an undefined property Illuminate\\Database\\Eloquent\\Model#'

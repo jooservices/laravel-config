@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JooServices\LaravelConfig\Facades;
+namespace JOOservices\LaravelConfig\Facades;
 
 use Illuminate\Support\Facades\Facade;
-use JooServices\LaravelConfig\Services\ConfigService;
+use JOOservices\LaravelConfig\Services\ConfigService;
 
 /**
  * @method static mixed get(string $path, mixed $default = null)
