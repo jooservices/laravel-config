@@ -9,7 +9,7 @@
          failOnWarning="true"
 >
     <testsuites>
-        <testsuite name="JooServices Laravel Config Test Suite">
+        <testsuite name="JOOservices Laravel Config Test Suite">
             <directory>tests</directory>
         </testsuite>
     </testsuites>
