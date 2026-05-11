@@ -358,7 +358,7 @@ class ConfigServiceTest extends TestCase
         $this->assertFalse(Config::has('system.cache_off'));
     }
 
-    public function test_fresh_updates_in_memory(): void
+    public function test_fresh_does_not_update_in_memory(): void
     {
         Config::set('system.origin', 'first');
         Config::refresh();
@@ -384,7 +384,7 @@ class ConfigServiceTest extends TestCase
         Config::set('system.first', 'one');
         Config::set('system.second', 'two');
 
-        $this->app->forgetInstance('config-store');
+        $this->resetConfigStoreService();
 
         Config::set('system.third', 'three');
 
@@ -397,7 +397,7 @@ class ConfigServiceTest extends TestCase
     {
         Config::set('system.cached', 'value');
 
-        $this->app->forgetInstance('config-store');
+        $this->resetConfigStoreService();
 
         $this->assertTrue(Config::forget('system.cached'));
         $this->assertNull(Config::get('system.cached'));

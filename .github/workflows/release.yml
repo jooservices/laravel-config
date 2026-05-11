@@ -50,7 +50,7 @@ jobs:
         run: composer validate --strict
 
       - name: Run security audit
-        run: composer audit --no-dev --locked
+        run: composer audit --no-dev
 
       - name: Run checks
         run: composer check
@@ -71,10 +71,10 @@ jobs:
     needs: [release]
     steps:
       - name: Trigger Packagist update
-        if: ${{ secrets.PACKAGIST_USERNAME != '' && secrets.PACKAGIST_TOKEN != '' }}
         env:
           PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
           PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
+        if: ${{ env.PACKAGIST_USERNAME != '' && env.PACKAGIST_TOKEN != '' }}
         run: |
           curl -XPOST -H 'content-type:application/json' \
             "https://packagist.org/api/update-package?username=${PACKAGIST_USERNAME}" \

@@ -35,7 +35,7 @@ jobs:
         run: composer validate --strict
 
       - name: Run Composer audit
-        run: composer audit --no-dev --locked
+        run: composer audit --no-dev
 
   lint:
     name: Lint - ${{ matrix.tool.name }}
