@@ -2,6 +2,8 @@
 
 ## Read APIs
 
+Any `path` argument must use `group.key`; `group(group)` expects only the group name.
+
 - `get(path, default = null)`: read from memory or cache-backed map
 - `has(path)`: check existence, including stored `null` values
 - `group(group)`: return one group as an associative array

@@ -16,9 +16,9 @@ class ConfigService
 
     public function get(string $path, mixed $default = null): mixed
     {
-        $this->ensureLoaded();
-
         $configPath = $this->parsePath($path);
+
+        $this->ensureLoaded();
 
         if (
             ! array_key_exists($configPath->group, $this->items)
@@ -77,8 +77,9 @@ class ConfigService
 
     public function has(string $path): bool
     {
-        $this->ensureLoaded();
         $configPath = $this->parsePath($path);
+
+        $this->ensureLoaded();
 
         return array_key_exists($configPath->group, $this->items)
             && array_key_exists($configPath->key, $this->items[$configPath->group]);

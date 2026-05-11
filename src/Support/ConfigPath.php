@@ -26,7 +26,7 @@ final class ConfigPath
             throw new InvalidArgumentException("Invalid config path: {$path}. Must be group.key");
         }
 
-        $parts = explode('.', $normalizedPath);
+        $parts = array_map('trim', explode('.', $normalizedPath));
 
         if (count($parts) !== 2 || $parts[0] === '' || $parts[1] === '') {
             throw new InvalidArgumentException("Invalid config path: {$path}. Must be group.key");

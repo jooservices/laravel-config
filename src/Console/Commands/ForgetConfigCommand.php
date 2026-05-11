@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JOOservices\LaravelConfig\Console\Commands;
 
 use Illuminate\Console\Command;
+use InvalidArgumentException;
 use JOOservices\LaravelConfig\Services\ConfigService;
 
 class ForgetConfigCommand extends Command
@@ -15,7 +16,13 @@ class ForgetConfigCommand extends Command
 
     public function handle(ConfigService $configService): int
     {
-        $deleted = $configService->forget((string) $this->argument('path'));
+        try {
+            $deleted = $configService->forget((string) $this->argument('path'));
+        } catch (InvalidArgumentException $exception) {
+            $this->warn($exception->getMessage());
+
+            return self::FAILURE;
+        }
 
         if (! $deleted) {
             $this->warn('Config value not found.');

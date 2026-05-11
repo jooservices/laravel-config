@@ -15,7 +15,10 @@ $all = Config::all();
 ## Useful operator commands
 
 ```bash
+php artisan config-store:ensure-index
 php artisan config-store:get system.site_name --default="Default"
 php artisan config-store:set system.enabled true --type=bool
 php artisan config-store:refresh
 ```
+
+Run `config-store:ensure-index` before first writes to ensure the `group` + `key` unique index exists in MongoDB.

@@ -8,7 +8,7 @@ For any non-trivial task, agents should read:
 - `CLAUDE.md`
 - `ai/skills/README.md`
 
-The canonical skill source lives in `.github/skills/`.
+The canonical skill source lives in `.github/skills/` on GitHub.
 
 ## Recommended workflow
 

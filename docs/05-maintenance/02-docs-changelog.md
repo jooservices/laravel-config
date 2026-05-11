@@ -1,6 +1,6 @@
 # Documentation Changelog
 
-## 2026-05-12
+## 2026-05-11
 
 - added the first structured documentation set for architecture, getting started, usage, examples, development, and maintenance
 - documented namespace standardization to `JOOservices\LaravelConfig\`

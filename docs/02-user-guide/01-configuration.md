@@ -16,7 +16,7 @@ Published file: `config/config-store.php`
 - `float`
 - `bool`
 - `array`
-- `json`
+- `json`: stored as a JSON string and normalized back to an array when read
 - `null`
 
 ## Path validation

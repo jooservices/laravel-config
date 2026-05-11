@@ -23,8 +23,10 @@ php artisan vendor:publish --tag=config-store-config
 
 The package uses the `mongodb` connection and the `configs` collection. Set the connection DSN and database in your Laravel environment.
 
-## Ensure the unique index
+## Ensure the unique `(group, key)` index
 
 ```bash
 php artisan config-store:ensure-index
 ```
+
+This command ensures the required unique compound index on `group` + `key`.

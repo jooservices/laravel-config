@@ -7,4 +7,4 @@ AI contributors should start with:
 - `ai/skills/README.md`
 - `ai/skills/USAGE.md`
 
-The canonical repository skill files live under `.github/skills/`.
+The canonical repository skill files live under `.github/skills/` on GitHub.

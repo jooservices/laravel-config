@@ -15,7 +15,19 @@ class EnsureConfigIndexCommand extends Command
 
     public function handle(ConfigService $configService): int
     {
-        $indexName = $configService->ensureIndexes();
+        try {
+            $indexName = $configService->ensureIndexes();
+        } catch (\Throwable $exception) {
+            $this->error('Failed to ensure MongoDB index: '.$exception->getMessage());
+
+            return self::FAILURE;
+        }
+
+        if ($indexName === '') {
+            $this->error('Failed to ensure MongoDB index.');
+
+            return self::FAILURE;
+        }
 
         $this->info("Ensured MongoDB index [{$indexName}].");
 

@@ -69,13 +69,13 @@ jobs:
     name: Publish to Packagist
     runs-on: ubuntu-latest
     needs: [release]
-    if: ${{ secrets.PACKAGIST_USERNAME != '' && secrets.PACKAGIST_TOKEN != '' }}
     steps:
       - name: Trigger Packagist update
+        if: ${{ secrets.PACKAGIST_USERNAME != '' && secrets.PACKAGIST_TOKEN != '' }}
         env:
           PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
           PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
         run: |
           curl -XPOST -H 'content-type:application/json' \
             "https://packagist.org/api/update-package?username=${PACKAGIST_USERNAME}" \
-            -d '{"repository":{"url":"https://packagist.org/packages/jooservices/laravel-config"},"api_token":"'"${PACKAGIST_TOKEN}"'"}'
+            -d '{"repository":{"url":"https://github.com/jooservices/laravel-config"},"api_token":"'"${PACKAGIST_TOKEN}"'"}'
