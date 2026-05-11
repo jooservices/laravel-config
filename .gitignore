@@ -8,6 +8,11 @@ composer.lock
 *.log
 .DS_Store
 .idea/
+.vscode/
+.cursor/
+.claude/
+.windsurf/
+.aider*
 .php-cs-fixer.cache
 coverage/
 *.cache

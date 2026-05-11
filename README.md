@@ -1,182 +1,164 @@
-# jooservices/laravel-config
+# JOOservices Laravel Config
 
-Store and retrieve application configuration in MongoDB with in-memory and cache support.
+[![CI](https://github.com/jooservices/laravel-config/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/jooservices/laravel-config/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/jooservices/laravel-config/badge)](https://securityscorecards.dev/viewer/?uri=github.com/jooservices/laravel-config)
+[![PHP Version](https://img.shields.io/badge/PHP-8.5%2B-blue.svg)](https://www.php.net/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Packagist Version](https://img.shields.io/packagist/v/jooservices/laravel-config)](https://packagist.org/packages/jooservices/laravel-config)
 
-## Purpose
+The JOOservices Laravel Config package stores Laravel application configuration in MongoDB and exposes typed runtime access through `JOOservices\\LaravelConfig\\Facades\\Config`.
 
-This package persists configuration as **group / key / value / type** in MongoDB and exposes a simple API. Values are loaded once (from cache or database), kept in memory, and cache is updated on `set()` and `forget()`.
+Package name: `jooservices/laravel-config`
 
-## Requirements
-
-- PHP 8.2+
-- Laravel 11 or 12
-- MongoDB (via [mongodb/laravel-mongodb](https://github.com/mongodb/laravel-mongodb))
-- MongoDB PHP extension
-
-## Installation
+## Install
 
 ```bash
 composer require jooservices/laravel-config
 ```
 
-Publish config:
+Publish configuration:
 
 ```bash
 php artisan vendor:publish --tag=config-store-config
 ```
 
-Configure your MongoDB connection in `config/database.php` (see [Laravel MongoDB docs](https://github.com/mongodb/laravel-mongodb#configuration)). The package uses the `mongodb` connection and the `configs` collection; the database name is taken from that connection (e.g. `MONGODB_DATABASE`).
+## Requirements
 
-## Configuration
+- PHP 8.5+
+- Laravel 11 or 12
+- MongoDB via `mongodb/laravel-mongodb`
+- MongoDB PHP extension
 
-Publish the config file to `config/config-store.php`:
+## What the package does
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `cache_enabled` | `true` | Use cache for the full config map |
-| `cache_store` | default | Cache store name (null = default) |
-| `cache_ttl` | `3600` | TTL in seconds |
-| `cache_key` | `jooservices_config_all` | Cache key for the map |
+- stores values as `group`, `key`, `value`, and `type` documents in MongoDB
+- loads a full in-memory map on first read and optionally caches that map
+- supports typed normalization for `string`, `int`, `float`, `bool`, `array`, `json`, and `null`
+- provides runtime `get`, `set`, `forget`, `group`, `all`, `refresh`, and `fresh` operations
+- ships Artisan commands for common operator tasks
 
-Cache uses Laravel’s cache API: **no specific driver is required**. If `cache_store` is not set, the app’s default cache driver is used (e.g. `file`, `redis`, `database`, `array`). Set `cache_store` to use a specific store (e.g. `redis`).
+## Quick example
 
-Env examples:
+```php
+use JOOservices\LaravelConfig\Facades\Config;
 
-- `CONFIG_STORE_CACHE_ENABLED`
-- `CONFIG_STORE_CACHE_STORE`
-- `CONFIG_STORE_CACHE_TTL`
-- `CONFIG_STORE_CACHE_KEY`
+Config::set('system.site_name', 'XCrawler');
+Config::set('system.enabled', true);
+Config::set('payment.retry_times', 3);
 
-## Mongo index
+$siteName = Config::get('system.site_name');
+$system = Config::group('system');
+$fresh = Config::fresh('system.site_name');
+```
 
-The `configs` collection is created automatically on first write. Create a **unique compound index** on `group` + `key` so each group/key pair is unique (e.g. in MongoDB shell or your admin tool):
+## Path format and validation
+
+Paths must use the `group.key` format.
+
+Rejected values include:
+
+- empty paths
+- missing dots
+- leading dots
+- trailing dots
+- double dots
+- empty group or empty key segments
+
+Examples:
+
+- valid: `system.site_name`
+- valid: `payment.retry_times`
+- invalid: `system`
+- invalid: `.system.site_name`
+- invalid: `system.`
+- invalid: `system..site_name`
+
+## Cache and memory behavior
+
+- `get`, `has`, `group`, and `all` load from memory first
+- when memory is cold, the service reads the cached full map first, then MongoDB on cache miss
+- `set` and `forget` update MongoDB and keep the cache coherent without overwriting unrelated keys
+- `refresh` clears in-memory state and the configured cache key, then reloads from MongoDB
+- `fresh` bypasses the in-memory map and cache for a direct MongoDB read
+
+Important limitation:
+
+- the in-memory map is process-local, so long-running workers, Horizon processes, Octane workers, or multiple PHP-FPM workers can hold stale state until `refresh()` is called or the process is recycled
+
+## MongoDB index requirement
+
+Create a unique compound index on `group` and `key` so each config path remains unique.
+
+```bash
+php artisan config-store:ensure-index
+```
+
+Equivalent Mongo shell command:
 
 ```javascript
 db.configs.createIndex(
-  { "group": 1, "key": 1 },
-  { "unique": true }
+  { group: 1, key: 1 },
+  { name: 'config_group_key_unique', unique: true }
 );
 ```
 
-## Usage
-
-Use the `Config` facade (namespace `JooServices\LaravelConfig\Facades\Config`). Path format is **group.key** (e.g. `system.site_name`).
-
-```php
-use JooServices\LaravelConfig\Facades\Config;
-
-// Get (from memory/cache/DB)
-Config::get('system.site_name');              // null if missing
-Config::get('system.site_name', 'Default');   // with default
-
-// Set (persists and updates cache)
-Config::set('system.site_name', 'XCrawler');
-Config::set('payment.retry_times', 3);
-Config::set('payment.rate', 1.5);
-Config::set('system.enabled', true);
-Config::set('system.items', ['a' => 1]);
-Config::set('system.payload', '{"foo":"bar"}', 'json');
-
-// Check
-Config::has('system.site_name');
-
-// Remove
-Config::forget('system.site_name');
-
-// By group
-Config::group('system');   // ['site_name' => '...', 'enabled' => true, ...]
-
-// Full map
-Config::all();             // ['system' => [...], 'payment' => [...]]
-
-// Reload from storage and cache
-Config::refresh();
-
-// Single key from DB (bypass in-memory/cache)
-Config::fresh('system.site_name');
-Config::fresh('system.missing', 'Default');
-```
-
-To avoid collision with Laravel’s `Config`:
-
-```php
-use JooServices\LaravelConfig\Models\Config as ConfigModel;
-use JooServices\LaravelConfig\Facades\Config as ConfigStore;
-```
-
-## Cache behavior
-
-- **First access** (`get`, `has`, `group`, `all`): load from cache; on miss, load from MongoDB, build the map, store in cache, then serve from memory.
-- **Later accesses**: served from in-memory map only (no DB/cache reads).
-- **set()** and **forget()**: update MongoDB and refresh the cached map and in-memory state.
-- **refresh()**: clear in-memory and cache, then reload from MongoDB and repopulate cache (if enabled).
-
-## Supported value types
-
-Stored and normalized on load:
-
-- `string`
-- `int`
-- `float`
-- `bool`
-- `array`
-- `json` (stored as string, returned as array)
-- `null`
-
-Type can be set explicitly: `Config::set('app.count', '42', 'int')`. If omitted, it is inferred from the value.
-
-## Testing
-
-Tests use PHPUnit and Orchestra Testbench. The config store uses **MongoDB** (same as production). The test suite expects a MongoDB instance (e.g. local or in CI).
-
-1. Configure MongoDB for tests (e.g. in `phpunit.xml` or `.env.testing`):
-
-   - `MONGODB_URI` or `MONGO_URI` (e.g. `mongodb://localhost:27017`)
-   - `MONGODB_DATABASE` (e.g. `jooservices_configs_test`)
-
-2. Run tests:
+## Artisan commands
 
 ```bash
-composer test
+php artisan config-store:get system.site_name --default="Default"
+php artisan config-store:set system.site_name XCrawler
+php artisan config-store:set system.enabled true --type=bool
+php artisan config-store:forget system.site_name
+php artisan config-store:refresh
+php artisan config-store:ensure-index
 ```
 
-Coverage:
+## Security note
 
-```bash
-composer test:coverage
-```
+This package can store sensitive values, but it does not encrypt stored values by default. Do not place credentials or secrets in this store unless your MongoDB deployment, backups, and access controls already satisfy your security requirements.
 
-For the Laravel app under Testbench, `phpunit.xml` can also define a MySQL connection (e.g. `DB_CONNECTION=mysql`, `DB_DATABASE=jooservices_configs`) if your tests need it; the package’s config store still uses MongoDB.
+## Upgrade note
 
-## Linting
+The canonical namespace for this package is now `JOOservices\\LaravelConfig\\`. Existing code that imports `JooServices\\LaravelConfig\\...` must be updated. This repository does not currently ship a compatibility alias layer.
 
-Run all lint checks (Pint, PHPStan, PHPMD, PHPCS). Pint wins on formatting over PHPCS.
+## Documentation
+
+Start with:
+
+- [Documentation Hub](./docs/README.md)
+- [Installation](./docs/01-getting-started/01-installation.md)
+- [Quick Start](./docs/01-getting-started/02-quick-start.md)
+- [Configuration](./docs/02-user-guide/01-configuration.md)
+- [Usage Guide](./docs/02-user-guide/02-usage-guide.md)
+- [Risks, Legacy, and Gaps](./docs/05-maintenance/01-risks-legacy-and-gaps.md)
+- [Changelog](./CHANGELOG.md)
+
+## AI support
+
+This repository includes AI contributor guidance and skill files.
+
+Start with:
+
+- [AGENTS.md](./AGENTS.md)
+- [CLAUDE.md](./CLAUDE.md)
+- [AI Skills Map](./ai/skills/README.md)
+- [AI Skills Usage Guide](./ai/skills/USAGE.md)
+
+## Development
 
 ```bash
 composer lint
+composer lint:all
+composer test
+composer test:coverage
+composer check
+composer ci
 ```
 
-Fix code style (Pint):
+MongoDB must be available for integration tests.
 
-```bash
-composer lint:fix
-```
+## Community
 
-Run a specific linter:
-
-```bash
-composer lint:pint
-composer lint:phpstan
-composer lint:phpmd
-composer lint:phpcs
-```
-
-Full check (lint + tests): `composer lint && composer test`
-
-## License
-
-MIT.
-
-## Author
-
-Viet Vu – jooservices@gmail.com
+- [Contributing](./CONTRIBUTING.md)
+- [Security Policy](./SECURITY.md)
+- [License](./LICENSE)

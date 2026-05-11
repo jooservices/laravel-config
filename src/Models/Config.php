@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JooServices\LaravelConfig\Models;
+namespace JOOservices\LaravelConfig\Models;
 
 use MongoDB\Laravel\Eloquent\Model;
 

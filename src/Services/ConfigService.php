@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace JooServices\LaravelConfig\Services;
+namespace JOOservices\LaravelConfig\Services;
 
 use Illuminate\Contracts\Cache\Repository;
-use InvalidArgumentException;
-use JooServices\LaravelConfig\Models\Config as ConfigModel;
+use JOOservices\LaravelConfig\Models\Config as ConfigModel;
+use JOOservices\LaravelConfig\Support\ConfigPath;
 
 class ConfigService
 {
@@ -18,48 +18,46 @@ class ConfigService
     {
         $this->ensureLoaded();
 
-        $keys = $this->parsePath($path);
+        $configPath = $this->parsePath($path);
 
-        $group = $keys['group'];
-        $key = $keys['key'];
+        if (
+            ! array_key_exists($configPath->group, $this->items)
+            || ! array_key_exists($configPath->key, $this->items[$configPath->group])
+        ) {
+            return $default;
+        }
 
-        $value = $this->items[$group][$key] ?? null;
-
-        return $value !== null ? $value : $default;
+        return $this->items[$configPath->group][$configPath->key];
     }
 
     public function fresh(string $path, mixed $default = null): mixed
     {
-        $keys = $this->parsePath($path);
-        $group = $keys['group'];
-        $key = $keys['key'];
+        $configPath = $this->parsePath($path);
 
-        $record = ConfigModel::where('group', $group)->where('key', $key)->first();
+        $record = ConfigModel::query()
+            ->where('group', $configPath->group)
+            ->where('key', $configPath->key)
+            ->first();
 
         if ($record === null) {
             return $default;
         }
 
-        $normalized = $this->normalizeValue($record->value, $record->type ?? 'string');
-
-        $this->items[$group][$key] = $normalized;
-
-        return $normalized;
+        return $this->normalizeValue($record->value, $record->type ?? 'string');
     }
 
     public function set(string $path, mixed $value, ?string $type = null): void
     {
-        $keys = $this->parsePath($path);
-        $group = $keys['group'];
-        $key = $keys['key'];
+        $configPath = $this->parsePath($path);
 
         $type = $type ?? $this->inferType($value);
         $storedValue = $this->valueForStorage($value, $type);
+        $normalizedValue = $this->normalizeValue($storedValue, $type);
 
         ConfigModel::updateOrCreate(
             [
-                'group' => $group,
-                'key' => $key,
+                'group' => $configPath->group,
+                'key' => $configPath->key,
             ],
             [
                 'value' => $storedValue,
@@ -67,34 +65,58 @@ class ConfigService
             ]
         );
 
-        $this->items[$group][$key] = $this->normalizeValue($storedValue, $type);
+        if (! $this->loaded) {
+            $this->invalidateCache();
+
+            return;
+        }
+
+        $this->items[$configPath->group][$configPath->key] = $normalizedValue;
         $this->putCache();
     }
 
     public function has(string $path): bool
     {
         $this->ensureLoaded();
-        $keys = $this->parsePath($path);
-        $group = $keys['group'];
-        $key = $keys['key'];
+        $configPath = $this->parsePath($path);
 
-        return isset($this->items[$group][$key]);
+        return array_key_exists($configPath->group, $this->items)
+            && array_key_exists($configPath->key, $this->items[$configPath->group]);
     }
 
     public function forget(string $path): bool
     {
-        $keys = $this->parsePath($path);
-        $group = $keys['group'];
-        $key = $keys['key'];
+        $configPath = $this->parsePath($path);
 
-        $deleted = ConfigModel::where('group', $group)->where('key', $key)->delete() > 0;
+        $deleted = ConfigModel::query()
+            ->where('group', $configPath->group)
+            ->where('key', $configPath->key)
+            ->delete() > 0;
 
-        if ($deleted && isset($this->items[$group][$key])) {
-            unset($this->items[$group][$key]);
-            $this->putCache();
+        if (! $deleted) {
+            return false;
         }
 
-        return $deleted;
+        if (! $this->loaded) {
+            $this->invalidateCache();
+
+            return true;
+        }
+
+        if (
+            array_key_exists($configPath->group, $this->items)
+            && array_key_exists($configPath->key, $this->items[$configPath->group])
+        ) {
+            unset($this->items[$configPath->group][$configPath->key]);
+
+            if ($this->items[$configPath->group] === []) {
+                unset($this->items[$configPath->group]);
+            }
+        }
+
+        $this->putCache();
+
+        return true;
     }
 
     public function group(string $group): array
@@ -142,21 +164,33 @@ class ConfigService
 
     protected function loadFromDatabase(): void
     {
-        $this->items = [];
+        $this->items = ConfigModel::query()
+            ->get()
+            ->reduce(function (array $items, ConfigModel $record): array {
+                $group = (string) $record->group;
+                $key = (string) $record->key;
+                $items[$group] ??= [];
+                $items[$group][$key] = $this->normalizeValue(
+                    $record->value,
+                    $record->type ?? 'string'
+                );
 
-        $records = ConfigModel::all();
+                return $items;
+            }, []);
+    }
 
-        foreach ($records as $record) {
-            $group = (string) $record->group;
-            $key = (string) $record->key;
-            if (! isset($this->items[$group])) {
-                $this->items[$group] = [];
-            }
-            $this->items[$group][$key] = $this->normalizeValue(
-                $record->value,
-                $record->type ?? 'string'
+    public function ensureIndexes(): string
+    {
+        $indexName = 'config_group_key_unique';
+
+        ConfigModel::query()->raw(function ($collection) use ($indexName) {
+            return $collection->createIndex(
+                ['group' => 1, 'key' => 1],
+                ['name' => $indexName, 'unique' => true]
             );
-        }
+        });
+
+        return $indexName;
     }
 
     protected function putCache(): void
@@ -172,24 +206,18 @@ class ConfigService
         );
     }
 
-    protected function parsePath(string $path): array
+    protected function invalidateCache(): void
     {
-        $path = trim($path);
-
-        if ($path === '' || $path[0] === '.' || substr($path, -1) === '.') {
-            throw new InvalidArgumentException("Invalid config path: {$path}");
+        if (! $this->isCacheEnabled()) {
+            return;
         }
 
-        $parts = explode('.', $path);
+        $this->getCacheStore()->forget($this->getCacheKey());
+    }
 
-        if (count($parts) !== 2 || $parts[0] === '' || $parts[1] === '') {
-            throw new InvalidArgumentException("Invalid config path: {$path}. Must be group.key");
-        }
-
-        return [
-            'group' => $parts[0],
-            'key' => $parts[1],
-        ];
+    protected function parsePath(string $path): ConfigPath
+    {
+        return ConfigPath::fromString($path);
     }
 
     protected function normalizeArrayValue(mixed $value): array
@@ -220,23 +248,14 @@ class ConfigService
 
     protected function inferType(mixed $value): string
     {
-        if ($value === null) {
-            return 'null';
-        }
-        if (is_bool($value)) {
-            return 'bool';
-        }
-        if (is_int($value)) {
-            return 'int';
-        }
-        if (is_float($value)) {
-            return 'float';
-        }
-        if (is_array($value)) {
-            return 'array';
-        }
-
-        return 'string';
+        return match (true) {
+            $value === null => 'null',
+            is_bool($value) => 'bool',
+            is_int($value) => 'int',
+            is_float($value) => 'float',
+            is_array($value) => 'array',
+            default => 'string',
+        };
     }
 
     protected function valueForStorage(mixed $value, string $type): mixed
