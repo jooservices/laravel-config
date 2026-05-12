@@ -53,6 +53,8 @@ jobs:
             command: lint:phpstan
           - name: PHPMD
             command: lint:phpmd
+          - name: PHP-CS-Fixer
+            command: lint:cs
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -71,7 +73,7 @@ jobs:
         run: composer ${{ matrix.tool.command }}
 
   tests:
-    name: Tests
+    name: Tests & Coverage
     runs-on: ubuntu-latest
     needs: [lint]
     services:
