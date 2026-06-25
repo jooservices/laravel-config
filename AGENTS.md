@@ -12,7 +12,7 @@ This repository is a Laravel package named `jooservices/laravel-config`.
 ## Package rules
 
 - the canonical namespace is `JOOservices\LaravelConfig\`
-- target PHP 8.5+ and Laravel 11 or 12
+- target PHP 8.5+ and Laravel 11, 12, or 13
 - keep package internals simple and avoid unnecessary abstractions
 - use real integration-style tests for persistence behavior
 - do not mock internal package behavior such as cache or Mongo persistence flows

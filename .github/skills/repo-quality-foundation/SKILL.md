@@ -7,7 +7,7 @@ Use this skill to preserve repository-wide standards for `jooservices/laravel-co
 ## Rules
 
 - use namespace `JOOservices\LaravelConfig\`
-- target PHP 8.5+ and Laravel 11 or 12
+- target PHP 8.5+ and Laravel 11, 12, or 13
 - treat README, docs, tests, and workflows as part of repository quality
 - Pint is the final formatting authority
 - do not add unnecessary architecture layers to a small package

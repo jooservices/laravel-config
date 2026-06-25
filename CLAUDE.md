@@ -5,7 +5,7 @@ Use this repository as a Laravel package, not a full Laravel app.
 ## Non-negotiable rules
 
 - namespace must be `JOOservices\LaravelConfig\`
-- target PHP 8.5+ and Laravel 11 or 12
+- target PHP 8.5+ and Laravel 11, 12, or 13
 - Pint wins when style tools disagree
 - do not add internal mocks for package persistence behavior
 - stop and ask when repository truth is missing or conflicts with the request

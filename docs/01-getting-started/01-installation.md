@@ -3,7 +3,7 @@
 ## Requirements
 
 - PHP 8.5+
-- Laravel 11 or 12
+- Laravel 11, 12, or 13
 - `mongodb/laravel-mongodb`
 - MongoDB PHP extension
 

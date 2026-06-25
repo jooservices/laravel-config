@@ -7,6 +7,7 @@ namespace JOOservices\LaravelConfig\Services;
 use Illuminate\Contracts\Cache\Repository;
 use JOOservices\LaravelConfig\Models\Config as ConfigModel;
 use JOOservices\LaravelConfig\Support\ConfigPath;
+use MongoDB\Laravel\Eloquent\Builder as MongoBuilder;
 
 class ConfigService
 {
@@ -184,7 +185,9 @@ class ConfigService
     {
         $indexName = 'config_group_key_unique';
 
-        ConfigModel::query()->raw(function ($collection) use ($indexName) {
+        /** @var MongoBuilder<ConfigModel> $query */
+        $query = ConfigModel::query();
+        $query->raw(function ($collection) use ($indexName) {
             return $collection->createIndex(
                 ['group' => 1, 'key' => 1],
                 ['name' => $indexName, 'unique' => true]
