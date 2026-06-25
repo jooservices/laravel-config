@@ -79,11 +79,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        laravel: ['11', '12', '13']
+        # Laravel 11 stays in composer.json's support range but is excluded from this
+        # matrix: every orchestra/testbench release compatible with Laravel 11 currently
+        # resolves to a laravel/framework patch flagged by Composer's audit policy.
+        laravel: ['12', '13']
         include:
-          - laravel: '11'
-            testbench: '^9.0'
-            coverage: false
           - laravel: '12'
             testbench: '^10.0'
             coverage: true
