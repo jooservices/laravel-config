@@ -2,7 +2,6 @@
 .phpunit.cache/
 .phpunit.result.cache
 /build/
-composer.lock
 .env
 .env.testing
 *.log

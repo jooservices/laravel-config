@@ -16,14 +16,15 @@
     },
     "require": {
         "php": "^8.5",
-        "illuminate/support": "^11.0|^12.0",
-        "illuminate/cache": "^11.0|^12.0",
-        "illuminate/config": "^11.0|^12.0",
-        "illuminate/database": "^11.0|^12.0",
+        "illuminate/support": "^11.0|^12.0|^13.0",
+        "illuminate/cache": "^11.0|^12.0|^13.0",
+        "illuminate/config": "^11.0|^12.0|^13.0",
+        "illuminate/database": "^11.0|^12.0|^13.0",
         "mongodb/laravel-mongodb": "^4.0|^5.0"
     },
     "require-dev": {
-        "orchestra/testbench": "^9.0|^10.0",
+        "friendsofphp/php-cs-fixer": "^3.65",
+        "orchestra/testbench": "^9.0|^10.0|^11.0",
         "phpunit/phpunit": "^12.0",
         "laravel/pint": "^1.0",
         "phpstan/phpstan": "^2.0",
@@ -48,6 +49,8 @@
         "lint:phpstan": "XDEBUG_MODE=off vendor/bin/phpstan analyse --memory-limit=256M",
         "lint:phpmd": "php -d error_reporting=6143 vendor/bin/phpmd src text phpmd.xml",
         "lint:phpcs": "vendor/bin/phpcs src tests --standard=phpcs.xml",
+        "lint:cs": "vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php --dry-run --diff --sequential",
+        "lint:cs:fix": "vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php --sequential",
         "lint": [
             "@lint:pint",
             "@lint:phpcs",
@@ -55,10 +58,12 @@
         ],
         "lint:all": [
             "@lint",
-            "@lint:phpmd"
+            "@lint:phpmd",
+            "@lint:cs"
         ],
         "lint:fix": [
-            "@lint:pint:fix"
+            "@lint:pint:fix",
+            "@lint:cs:fix"
         ],
         "check": [
             "@lint:all",

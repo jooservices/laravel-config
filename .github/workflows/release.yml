@@ -34,7 +34,7 @@ jobs:
       MONGODB_DATABASE: jooservices_configs_release
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -44,7 +44,7 @@ jobs:
           coverage: none
 
       - name: Install Composer dependencies
-        uses: ramsey/composer-install@v3
+        uses: ramsey/composer-install@v4
 
       - name: Validate Composer metadata
         run: composer validate --strict
@@ -52,8 +52,11 @@ jobs:
       - name: Run security audit
         run: composer audit --no-dev
 
-      - name: Run checks
-        run: composer check
+      - name: Run lint checks
+        run: composer lint:all
+
+      - name: Run tests
+        run: composer test -- --no-coverage
 
   release:
     name: Create GitHub Release

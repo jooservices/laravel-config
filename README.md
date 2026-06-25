@@ -25,7 +25,7 @@ php artisan vendor:publish --tag=config-store-config
 ## Requirements
 
 - PHP 8.5+
-- Laravel 11 or 12
+- Laravel 11, 12, or 13
 - MongoDB via `mongodb/laravel-mongodb`
 - MongoDB PHP extension
 
@@ -130,6 +130,7 @@ Start with:
 - [Quick Start](./docs/01-getting-started/02-quick-start.md)
 - [Configuration](./docs/02-user-guide/01-configuration.md)
 - [Usage Guide](./docs/02-user-guide/02-usage-guide.md)
+- [Release Process](./docs/04-development/06-release-process.md)
 - [Risks, Legacy, and Gaps](./docs/05-maintenance/01-risks-legacy-and-gaps.md)
 - [Changelog](./CHANGELOG.md)
 
