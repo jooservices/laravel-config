@@ -20,15 +20,20 @@
         "illuminate/cache": "^11.0|^12.0|^13.0",
         "illuminate/config": "^11.0|^12.0|^13.0",
         "illuminate/database": "^11.0|^12.0|^13.0",
-        "mongodb/laravel-mongodb": "^4.0|^5.0"
+        "mongodb/laravel-mongodb": "^5.4"
     },
     "require-dev": {
+        "captainhook/captainhook": "^5.25",
+        "captainhook/plugin-composer": "^5.3",
         "friendsofphp/php-cs-fixer": "^3.65",
-        "orchestra/testbench": "^9.0|^10.0|^11.0",
-        "phpunit/phpunit": "^12.0",
         "laravel/pint": "^1.0",
-        "phpstan/phpstan": "^2.0",
+        "orchestra/testbench": "^9.0|^10.0|^11.0",
         "phpmd/phpmd": "^2.13",
+        "phpbench/phpbench": "^1.6",
+        "phpstan/phpstan": "^2.0",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpstan/phpstan-strict-rules": "^2.0",
+        "phpunit/phpunit": "^12.0",
         "squizlabs/php_codesniffer": "^3.0"
     },
     "autoload": {
@@ -43,10 +48,13 @@
     },
     "scripts": {
         "test": "vendor/bin/phpunit",
-        "test:coverage": "vendor/bin/phpunit --coverage-text",
+        "test:coverage": "vendor/bin/phpunit --coverage-text --coverage-clover build/coverage/clover.xml",
+        "bench": "phpbench run --report=default",
+        "bench:quick": "phpbench run --report=default --revs=100 --iterations=3",
+        "instructions:verify": "php tools/verify-ai-instructions-sync.php",
         "lint:pint": "vendor/bin/pint --test",
         "lint:pint:fix": "vendor/bin/pint",
-        "lint:phpstan": "XDEBUG_MODE=off vendor/bin/phpstan analyse --memory-limit=256M",
+        "lint:phpstan": "XDEBUG_MODE=off vendor/bin/phpstan analyse --memory-limit=512M",
         "lint:phpmd": "php -d error_reporting=6143 vendor/bin/phpmd src text phpmd.xml",
         "lint:phpcs": "vendor/bin/phpcs src tests --standard=phpcs.xml",
         "lint:cs": "vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php --dry-run --diff --sequential",
@@ -59,7 +67,8 @@
         "lint:all": [
             "@lint",
             "@lint:phpmd",
-            "@lint:cs"
+            "@lint:cs",
+            "@instructions:verify"
         ],
         "lint:fix": [
             "@lint:pint:fix",
@@ -72,11 +81,15 @@
         "ci": [
             "@lint:all",
             "@test:coverage"
-        ]
+        ],
+        "post-install-cmd": "captainhook install --force --skip-existing",
+        "post-update-cmd": "captainhook install --force --skip-existing"
     },
     "config": {
         "sort-packages": true,
-        "allow-plugins": {}
+        "allow-plugins": {
+            "captainhook/plugin-composer": true
+        }
     },
     "extra": {
         "laravel": {

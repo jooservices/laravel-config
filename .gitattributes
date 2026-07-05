@@ -1,0 +1,13 @@
+* text=auto eol=lf
+*.php text diff=php eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+composer.lock text merge=union
+/tests export-ignore
+/docs export-ignore
+/.github export-ignore
+/phpunit.xml export-ignore
+/phpstan.neon export-ignore
+/captainhook.json export-ignore

@@ -4,22 +4,28 @@ declare(strict_types=1);
 
 namespace JOOservices\LaravelConfig\Console\Commands;
 
-use Illuminate\Console\Command;
-use JOOservices\LaravelConfig\Services\ConfigService;
+use InvalidArgumentException;
+use JOOservices\LaravelConfig\Contracts\ConfigStore;
 
-class SetConfigCommand extends Command
+class SetConfigCommand extends ConfigCommand
 {
     protected $signature = 'config-store:set {path} {value} {--type=}';
 
     protected $description = 'Set a config-store value by path.';
 
-    public function handle(ConfigService $configService): int
+    public function handle(ConfigStore $configService): int
     {
-        $configService->set(
-            (string) $this->argument('path'),
-            $this->argument('value'),
-            $this->option('type') ?: null
-        );
+        try {
+            $configService->set(
+                $this->pathArgument(),
+                $this->argument('value'),
+                $this->typeOption()
+            );
+        } catch (InvalidArgumentException $exception) {
+            $this->error($exception->getMessage());
+
+            return self::FAILURE;
+        }
 
         $this->info('Config value stored.');
 

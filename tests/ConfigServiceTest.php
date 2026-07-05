@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace JOOservices\LaravelConfig\Tests;
 
+use Illuminate\Support\Facades\Cache;
+use JOOservices\LaravelConfig\Contracts\ConfigStore;
 use JOOservices\LaravelConfig\Facades\Config;
 use JOOservices\LaravelConfig\Models\Config as ConfigModel;
 use JOOservices\LaravelConfig\Services\ConfigService;
@@ -433,15 +435,81 @@ class ConfigServiceTest extends TestCase
     {
         $this->app['config']->set('config-store.cache_store', 'array');
         $this->app['config']->set('cache.default', 'array');
-        $this->app->forgetInstance('config-store');
+        $this->resetConfigStoreService();
         Config::set('system.via_default', 'ok');
         $this->assertSame('ok', Config::get('system.via_default'));
     }
 
-    public function test_model_returns_collection_name(): void
+    public function test_warm_instances_keep_shared_cache_coherent_via_version_stamp(): void
     {
-        $model = new ConfigModel();
-        $this->assertSame('configs', $model->getCollectionName());
+        $serviceA = $this->makeConfigService();
+        $serviceB = $this->makeConfigService();
+
+        $serviceA->set('system.first', 'one');
+        $serviceB->set('system.second', 'two');
+
+        $serviceC = $this->makeConfigService();
+        $serviceC->refresh();
+
+        $this->assertSame('one', $serviceC->get('system.first'));
+        $this->assertSame('two', $serviceC->get('system.second'));
+    }
+
+    public function test_set_with_invalid_type_throws(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        Config::set('system.bad', 'value', 'boolean');
+    }
+
+    public function test_set_with_invalid_json_throws(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        Config::set('system.bad_json', '{invalid', 'json');
+    }
+
+    public function test_remember_persists_default_when_missing(): void
+    {
+        $this->assertSame('default', Config::remember('system.remembered', 'default'));
+        $this->assertSame('default', Config::get('system.remembered'));
+    }
+
+    public function test_typed_getters_return_expected_types(): void
+    {
+        Config::set('typed.name', 'XCrawler');
+        Config::set('typed.count', 3);
+        Config::set('typed.rate', 1.5);
+        Config::set('typed.enabled', true);
+        Config::set('typed.items', ['a' => 1], 'array');
+
+        $this->assertSame('XCrawler', Config::getString('typed.name'));
+        $this->assertSame(3, Config::getInt('typed.count'));
+        $this->assertSame(1.5, Config::getFloat('typed.rate'));
+        $this->assertTrue(Config::getBool('typed.enabled'));
+        $this->assertSame(['a' => 1], Config::getArray('typed.items'));
+    }
+
+    public function test_get_int_throws_when_type_mismatch(): void
+    {
+        Config::set('typed.wrong', 'text');
+
+        $this->expectException(\InvalidArgumentException::class);
+        Config::getInt('typed.wrong');
+    }
+
+    public function test_refresh_with_cache_disabled_does_not_fail(): void
+    {
+        $this->app['config']->set('config-store.cache_enabled', false);
+        $this->resetConfigStoreService();
+
+        Config::set('system.cached', 'value');
+        Config::refresh();
+
+        $this->assertSame('value', Config::get('system.cached'));
+    }
+
+    public function test_container_resolves_config_store_contract(): void
+    {
+        $this->assertInstanceOf(ConfigService::class, $this->app->make(ConfigStore::class));
     }
 
     public function test_set_null_without_type_infers_null(): void
@@ -483,5 +551,96 @@ class ConfigServiceTest extends TestCase
         ]);
         Config::refresh();
         $this->assertSame(['nested' => true], Config::get('arr.native'));
+    }
+
+    public function test_remember_returns_existing_value_without_overwriting(): void
+    {
+        Config::set('system.existing', 'keep');
+
+        $this->assertSame('keep', Config::remember('system.existing', 'replace'));
+    }
+
+    public function test_loaded_instance_reloads_when_cache_version_changes(): void
+    {
+        $serviceA = $this->makeConfigService();
+        $serviceB = $this->makeConfigService();
+
+        $serviceA->set('system.first', 'one');
+        $serviceB->get('system.first');
+        $serviceB->set('system.second', 'two');
+
+        $this->assertSame('one', $serviceA->get('system.first'));
+        $this->assertSame('two', $serviceA->get('system.second'));
+    }
+
+    public function test_poisoned_cache_entries_with_invalid_groups_are_ignored(): void
+    {
+        Config::set('valid.key', 'value');
+
+        $cacheKey = config('config-store.cache_key');
+        $this->assertIsString($cacheKey);
+
+        Cache::store('array')->put($cacheKey, [
+            123 => 'ignored',
+            'valid' => ['key' => 'value', 456 => 'ignored-key'],
+        ], 3600);
+
+        $this->resetConfigStoreService();
+
+        $this->assertSame('value', Config::get('valid.key'));
+    }
+
+    public function test_set_json_type_rejects_non_array_json_document(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('JSON value must decode to an array');
+
+        Config::set('system.scalar_json', '"just-a-string"', 'json');
+    }
+
+    public function test_set_array_type_rejects_values_that_cannot_be_json_encoded(): void
+    {
+        $resource = fopen('php://memory', 'rb');
+        $this->assertIsResource($resource);
+
+        try {
+            $this->expectException(\InvalidArgumentException::class);
+            $this->expectExceptionMessage('Unable to encode value as JSON');
+
+            Config::set('system.bad', ['stream' => $resource], 'array');
+        } finally {
+            fclose($resource);
+        }
+    }
+
+    public function test_get_array_returns_default_when_key_missing(): void
+    {
+        $this->assertSame(['fallback' => true], Config::getArray('system.missing', ['fallback' => true]));
+    }
+
+    public function test_get_string_throws_when_type_mismatch(): void
+    {
+        Config::set('typed.count', 3);
+
+        $this->expectException(\InvalidArgumentException::class);
+        Config::getString('typed.count');
+    }
+
+    public function test_get_array_throws_when_type_mismatch(): void
+    {
+        Config::set('typed.text', 'hello');
+
+        $this->expectException(\InvalidArgumentException::class);
+        Config::getArray('typed.text', ['fallback' => true]);
+    }
+
+    public function test_custom_cache_version_key_is_honored(): void
+    {
+        $this->app['config']->set('config-store.cache_version_key', 'custom_config_version_test');
+        $this->resetConfigStoreService();
+
+        Config::set('system.versioned', 'ok');
+
+        $this->assertNotSame(0, Cache::store('array')->get('custom_config_version_test'));
     }
 }

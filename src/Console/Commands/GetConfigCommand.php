@@ -4,20 +4,22 @@ declare(strict_types=1);
 
 namespace JOOservices\LaravelConfig\Console\Commands;
 
-use Illuminate\Console\Command;
-use JOOservices\LaravelConfig\Services\ConfigService;
+use JOOservices\LaravelConfig\Contracts\ConfigStore;
+use JsonException;
 
-class GetConfigCommand extends Command
+class GetConfigCommand extends ConfigCommand
 {
     protected $signature = 'config-store:get {path} {--default=}';
 
     protected $description = 'Get a config-store value by path.';
 
-    public function handle(ConfigService $configService): int
+    public function handle(ConfigStore $configService): int
     {
+        $default = $this->option('default');
+
         $value = $configService->get(
-            (string) $this->argument('path'),
-            $this->option('default')
+            $this->pathArgument(),
+            $default
         );
 
         $this->line($this->formatValue($value));
@@ -31,10 +33,39 @@ class GetConfigCommand extends Command
             return (string) json_encode($value, JSON_THROW_ON_ERROR);
         }
 
-        return match (true) {
-            is_bool($value) => $value ? 'true' : 'false',
-            $value === null => 'null',
-            default => (string) $value,
-        };
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        if ($value === null) {
+            return 'null';
+        }
+
+        if (is_object($value)) {
+            return $this->formatObject($value);
+        }
+
+        if (is_resource($value)) {
+            return 'resource('.get_resource_type($value).')';
+        }
+
+        if (is_scalar($value)) {
+            return (string) $value;
+        }
+
+        return var_export($value, true);
+    }
+
+    protected function formatObject(object $value): string
+    {
+        try {
+            return (string) json_encode($value, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            try {
+                return var_export($value, true);
+            } catch (\Throwable) {
+                return $value::class.' object';
+            }
+        }
     }
 }

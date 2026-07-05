@@ -31,8 +31,6 @@
     <php>
         <env name="APP_KEY" value="base64:2fl+Ktvk6xYfRg1+y+GURgM/u0bN2MTjC2i4xYHDUgo="/>
         <env name="APP_ENV" value="testing"/>
-        <env name="DB_CONNECTION" value="mysql"/>
-        <env name="DB_DATABASE" value="jooservices_configs"/>
         <env name="CONFIG_STORE_CACHE_ENABLED" value="true"/>
         <env name="CONFIG_STORE_CACHE_KEY" value="jooservices_config_all_test"/>
         <env name="MONGODB_URI" value="mongodb://localhost:27017"/>

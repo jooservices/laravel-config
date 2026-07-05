@@ -25,8 +25,9 @@ php artisan vendor:publish --tag=config-store-config
 ## Requirements
 
 - PHP 8.5+
-- Laravel 11, 12, or 13
-- MongoDB via `mongodb/laravel-mongodb`
+- Laravel 12 or 13 (CI-verified)
+- Laravel 11 (constraint-compatible; not CI-verified due to testbench audit constraints)
+- MongoDB via `mongodb/laravel-mongodb` ^5.4
 - MongoDB PHP extension
 
 ## What the package does
@@ -34,8 +35,9 @@ php artisan vendor:publish --tag=config-store-config
 - stores values as `group`, `key`, `value`, and `type` documents in MongoDB
 - loads a full in-memory map on first read and optionally caches that map
 - supports typed normalization for `string`, `int`, `float`, `bool`, `array`, `json`, and `null`
-- provides runtime `get`, `set`, `forget`, `group`, `all`, `refresh`, and `fresh` operations
+- provides runtime `get`, typed getters, `set`, `forget`, `remember`, `group`, `all`, `refresh`, and `fresh` operations
 - ships Artisan commands for common operator tasks
+- provides `Config::fake()` for consumer-app tests without MongoDB
 
 ## Quick example
 
@@ -77,13 +79,18 @@ Examples:
 
 - `get`, `has`, `group`, and `all` load from memory first
 - when memory is cold, the service reads the cached full map first, then MongoDB on cache miss
-- `set` and `forget` update MongoDB and keep the cache coherent without overwriting unrelated keys
+- `set` and `forget` update MongoDB, bump a shared cache version stamp, and refresh the cached full map within the current process
+- when a loaded process detects a newer cache version stamp, it reloads from cache or MongoDB before serving reads
 - `refresh` clears in-memory state and the configured cache key, then reloads from MongoDB
 - `fresh` bypasses the in-memory map and cache for a direct MongoDB read
+- stored `null` is returned as `null`; caller defaults are not applied when the key exists with a null value
+- bool normalization uses PHP `filter_var(..., FILTER_VALIDATE_BOOLEAN)` semantics
 
-Important limitation:
+Important limitations:
 
-- the in-memory map is process-local, so long-running workers, Horizon processes, Octane workers, or multiple PHP-FPM workers can hold stale state until `refresh()` is called or the process is recycled
+- the in-memory map is process-local, so long-running workers can hold stale in-memory state until `refresh()` is called or the process is recycled
+- each mutation rewrites the full cached map; keep collections config-sized (hundreds of keys, not thousands)
+- use a dedicated cache store/prefix in production; treat the shared cache as a trusted boundary
 
 ## MongoDB index requirement
 
@@ -109,6 +116,10 @@ php artisan config-store:get system.site_name --default="Default"
 php artisan config-store:set system.site_name XCrawler
 php artisan config-store:set system.enabled true --type=bool
 php artisan config-store:forget system.site_name
+php artisan config-store:list system --json
+php artisan config-store:doctor
+php artisan config-store:export storage/config-store.json
+php artisan config-store:import storage/config-store.json --merge
 php artisan config-store:refresh
 php artisan config-store:ensure-index
 ```

@@ -1,0 +1,75 @@
+{
+    "$schema": "https://captainhookphp.github.io/captainhook/schema.json",
+    "commit-msg": {
+        "enabled": true,
+        "actions": [
+            {
+                "action": "\\CaptainHook\\App\\Hook\\Message\\Action\\Regex",
+                "options": {
+                    "regex": "/^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\\(.+\\))?!?:\\s.{1,100}$/",
+                    "error": "Commit message must follow Conventional Commits format: <type>(<scope>): <description>"
+                }
+            }
+        ]
+    },
+    "pre-commit": {
+        "enabled": true,
+        "actions": [
+            {
+                "action": "\\CaptainHook\\App\\Hook\\PHP\\Action\\Linting",
+                "options": {
+                    "extensions": "php"
+                }
+            },
+            {
+                "action": "echo 'Running Pint style check...' && composer lint:pint",
+                "conditions": []
+            },
+            {
+                "action": "echo 'Running PHPCS structural checks...' && composer lint:phpcs",
+                "conditions": []
+            },
+            {
+                "action": "echo 'Running PHPStan static analysis...' && composer lint:phpstan",
+                "conditions": []
+            },
+            {
+                "action": "echo 'Running PHPMD...' && composer lint:phpmd",
+                "conditions": []
+            },
+            {
+                "action": "echo 'Running PHP-CS-Fixer...' && composer lint:cs",
+                "conditions": []
+            }
+        ]
+    },
+    "pre-push": {
+        "enabled": true,
+        "actions": [
+            {
+                "action": "echo 'Running tests...' && composer test",
+                "conditions": []
+            }
+        ]
+    },
+    "post-merge": {
+        "enabled": false,
+        "actions": []
+    },
+    "post-checkout": {
+        "enabled": false,
+        "actions": []
+    },
+    "post-rewrite": {
+        "enabled": false,
+        "actions": []
+    },
+    "post-change": {
+        "enabled": false,
+        "actions": []
+    },
+    "prepare-commit-msg": {
+        "enabled": false,
+        "actions": []
+    }
+}

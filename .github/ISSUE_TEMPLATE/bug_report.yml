@@ -1,0 +1,21 @@
+---
+name: Bug report
+about: Report a reproducible bug
+title: 'fix: '
+labels: bug
+---
+
+## Summary
+
+## Steps to reproduce
+
+## Expected behavior
+
+## Actual behavior
+
+## Environment
+
+- PHP version:
+- Laravel version:
+- Package version:
+- MongoDB version:
