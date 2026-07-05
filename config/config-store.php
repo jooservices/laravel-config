@@ -10,4 +10,6 @@ return [
     'cache_ttl' => (int) env('CONFIG_STORE_CACHE_TTL', 3600),
 
     'cache_key' => env('CONFIG_STORE_CACHE_KEY', 'jooservices_config_all'),
+
+    'cache_version_key' => env('CONFIG_STORE_CACHE_VERSION_KEY'),
 ];

@@ -23,12 +23,6 @@ class EnsureConfigIndexCommand extends Command
             return self::FAILURE;
         }
 
-        if ($indexName === '') {
-            $this->error('Failed to ensure MongoDB index.');
-
-            return self::FAILURE;
-        }
-
         $this->info("Ensured MongoDB index [{$indexName}].");
 
         return self::SUCCESS;
