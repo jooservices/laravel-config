@@ -4,6 +4,8 @@ All notable changes to `jooservices/laravel-config` should be documented here.
 
 ## Unreleased
 
+## 1.3.0 - 2026-07-06
+
 - add version-stamped cache coherence, `ConfigType` validation, JSON error hardening, typed getters, `Config::fake()`, and list/doctor/import/export commands
 - add `ConfigStore` contract, `ConfigChanged` / `ConfigForgotten` events, and `remember()` helper
 - align CI with jooservices/dto: PHPStan max + strict rules, coverage gate, SHA-pinned actions, dependency review, TruffleHog scanning
