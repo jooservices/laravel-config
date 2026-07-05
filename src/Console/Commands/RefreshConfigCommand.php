@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace JOOservices\LaravelConfig\Console\Commands;
 
 use Illuminate\Console\Command;
-use JOOservices\LaravelConfig\Services\ConfigService;
+use JOOservices\LaravelConfig\Contracts\ConfigStore;
 
 class RefreshConfigCommand extends Command
 {
@@ -13,7 +13,7 @@ class RefreshConfigCommand extends Command
 
     protected $description = 'Refresh the in-memory and cache state from MongoDB.';
 
-    public function handle(ConfigService $configService): int
+    public function handle(ConfigStore $configService): int
     {
         $configService->refresh();
 

@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace JOOservices\LaravelConfig\Tests;
 
 use JOOservices\LaravelConfig\ConfigServiceProvider;
+use JOOservices\LaravelConfig\Contracts\ConfigStore;
 use JOOservices\LaravelConfig\Facades\Config;
 use JOOservices\LaravelConfig\Models\Config as ConfigModel;
+use JOOservices\LaravelConfig\Services\ConfigService;
 use MongoDB\Laravel\MongoDBServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 
@@ -50,12 +52,19 @@ class TestCase extends Orchestra
     {
         ConfigModel::query()->delete();
         $this->resetConfigStoreService();
-        $this->app->make('config-store')->refresh();
+        $this->app->make(ConfigStore::class)->refresh();
     }
 
     protected function resetConfigStoreService(): void
     {
+        $this->app->forgetInstance(ConfigService::class);
         $this->app->forgetInstance('config-store');
-        Config::clearResolvedInstance('config-store');
+        $this->app->forgetInstance(ConfigStore::class);
+        Config::clearResolvedInstance(ConfigStore::class);
+    }
+
+    protected function makeConfigService(): ConfigService
+    {
+        return $this->app->make(ConfigService::class);
     }
 }

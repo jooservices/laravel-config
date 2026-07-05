@@ -19,23 +19,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1 # v2.36.0
         with:
           php-version: ${{ env.PHP_VERSION }}
           extensions: mongodb
           coverage: none
 
       - name: Install Composer dependencies
-        uses: ramsey/composer-install@v4
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # v4.0.0
 
       - name: Validate Composer metadata
         run: composer validate --strict
 
       - name: Run Composer audit
-        run: composer audit --no-dev
+        run: composer audit --locked --abandoned=ignore
 
   lint:
     name: Lint - ${{ matrix.tool.name }}
@@ -55,22 +55,37 @@ jobs:
             command: lint:phpmd
           - name: PHP-CS-Fixer
             command: lint:cs
+          - name: AI Instructions
+            command: instructions:verify
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1 # v2.36.0
         with:
           php-version: ${{ env.PHP_VERSION }}
           extensions: mongodb
           coverage: none
 
       - name: Install Composer dependencies
-        uses: ramsey/composer-install@v4
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # v4.0.0
 
       - name: Run ${{ matrix.tool.name }}
         run: composer ${{ matrix.tool.command }}
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    needs: [security]
+    if: github.event_name == 'pull_request'
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
 
   tests-matrix:
     name: Tests & Coverage (Laravel ${{ matrix.laravel }})
@@ -79,9 +94,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Laravel 11 stays in composer.json's support range but is excluded from this
-        # matrix: every orchestra/testbench release compatible with Laravel 11 currently
-        # resolves to a laravel/framework patch flagged by Composer's audit policy.
         laravel: ['12', '13']
         include:
           - laravel: '12'
@@ -106,17 +118,17 @@ jobs:
       XDEBUG_MODE: coverage
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1 # v2.36.0
         with:
           php-version: ${{ env.PHP_VERSION }}
           extensions: mongodb
           coverage: ${{ matrix.coverage && 'pcov' || 'none' }}
 
       - name: Install Composer dependencies
-        uses: ramsey/composer-install@v4
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # v4.0.0
 
       - name: Require Laravel ${{ matrix.laravel }}
         run: |
@@ -132,13 +144,30 @@ jobs:
         if: matrix.coverage
         run: composer test:coverage
 
+      - name: Check coverage threshold
+        if: matrix.coverage
+        run: |
+          COVERAGE=$(php -r "
+            \$xml = simplexml_load_file('build/coverage/clover.xml');
+            \$metrics = \$xml->project->metrics;
+            \$statements = (int) \$metrics['statements'];
+            \$covered = (int) \$metrics['coveredstatements'];
+            \$percent = \$statements > 0 ? round((\$covered / \$statements) * 100, 2) : 0;
+            echo \$percent;
+          ")
+          echo "Code coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < 95" | bc -l) )); then
+            echo "::error::Code coverage ${COVERAGE}% is below minimum threshold of 95%"
+            exit 1
+          fi
+
       - name: Run tests
         if: ${{ !matrix.coverage }}
         run: composer test -- --no-coverage
 
       - name: Upload coverage artifact
         if: matrix.coverage
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: coverage-report
           path: build/coverage/clover.xml
@@ -147,7 +176,7 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         if: matrix.coverage && env.CODECOV_TOKEN != ''
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           token: ${{ env.CODECOV_TOKEN }}
           files: build/coverage/clover.xml

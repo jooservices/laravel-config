@@ -5,15 +5,27 @@ declare(strict_types=1);
 namespace JOOservices\LaravelConfig\Services;
 
 use Illuminate\Contracts\Cache\Repository;
+use InvalidArgumentException;
+use JOOservices\LaravelConfig\Contracts\ConfigStore;
+use JOOservices\LaravelConfig\Events\ConfigChanged;
+use JOOservices\LaravelConfig\Events\ConfigForgotten;
 use JOOservices\LaravelConfig\Models\Config as ConfigModel;
 use JOOservices\LaravelConfig\Support\ConfigPath;
-use MongoDB\Laravel\Eloquent\Builder as MongoBuilder;
+use JOOservices\LaravelConfig\Support\ConfigType;
+use JsonException;
 
-class ConfigService
+class ConfigService implements ConfigStore
 {
+    /** @var array<string, array<string, mixed>> */
     protected array $items = [];
 
     protected bool $loaded = false;
+
+    protected ?int $cacheVersion = null;
+
+    public function __construct(
+        protected Repository $cacheStore,
+    ) {}
 
     public function get(string $path, mixed $default = null): mixed
     {
@@ -31,6 +43,41 @@ class ConfigService
         return $this->items[$configPath->group][$configPath->key];
     }
 
+    public function getString(string $path, ?string $default = null): ?string
+    {
+        return $this->typedGet($path, $default, static fn (mixed $value): ?string => is_string($value) ? $value : null);
+    }
+
+    public function getInt(string $path, ?int $default = null): ?int
+    {
+        return $this->typedGet($path, $default, static fn (mixed $value): ?int => is_int($value) ? $value : null);
+    }
+
+    public function getFloat(string $path, ?float $default = null): ?float
+    {
+        return $this->typedGet($path, $default, static fn (mixed $value): ?float => is_float($value) ? $value : null);
+    }
+
+    public function getBool(string $path, ?bool $default = null): ?bool
+    {
+        return $this->typedGet($path, $default, static fn (mixed $value): ?bool => is_bool($value) ? $value : null);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $default
+     * @return array<string, mixed>|null
+     */
+    public function getArray(string $path, ?array $default = null): ?array
+    {
+        return $this->typedGet($path, $default, function (mixed $value): ?array {
+            if (! is_array($value)) {
+                return null;
+            }
+
+            return $this->normalizeArrayMap($value);
+        });
+    }
+
     public function fresh(string $path, mixed $default = null): mixed
     {
         $configPath = $this->parsePath($path);
@@ -44,16 +91,16 @@ class ConfigService
             return $default;
         }
 
-        return $this->normalizeValue($record->value, $record->type ?? 'string');
+        return $this->normalizeStoredValue($record->value, $record->type ?? 'string');
     }
 
     public function set(string $path, mixed $value, ?string $type = null): void
     {
         $configPath = $this->parsePath($path);
 
-        $type = $type ?? $this->inferType($value);
-        $storedValue = $this->valueForStorage($value, $type);
-        $normalizedValue = $this->normalizeValue($storedValue, $type);
+        $configType = $type === null ? ConfigType::infer($value) : ConfigType::parse($type);
+        $storedValue = $this->valueForStorage($value, $configType);
+        $normalizedValue = $this->normalizeValue($storedValue, $configType);
 
         ConfigModel::updateOrCreate(
             [
@@ -62,18 +109,35 @@ class ConfigService
             ],
             [
                 'value' => $storedValue,
-                'type' => $type,
+                'type' => $configType->value,
             ]
         );
 
+        $this->bumpCacheVersion();
+
         if (! $this->loaded) {
             $this->invalidateCache();
+
+            event(new ConfigChanged($path, $normalizedValue, $configType->value));
 
             return;
         }
 
         $this->items[$configPath->group][$configPath->key] = $normalizedValue;
         $this->putCache();
+
+        event(new ConfigChanged($path, $normalizedValue, $configType->value));
+    }
+
+    public function remember(string $path, mixed $default, ?string $type = null): mixed
+    {
+        if ($this->has($path)) {
+            return $this->get($path);
+        }
+
+        $this->set($path, $default, $type);
+
+        return $this->get($path, $default);
     }
 
     public function has(string $path): bool
@@ -99,8 +163,12 @@ class ConfigService
             return false;
         }
 
+        $this->bumpCacheVersion();
+
         if (! $this->loaded) {
             $this->invalidateCache();
+
+            event(new ConfigForgotten($path));
 
             return true;
         }
@@ -117,6 +185,8 @@ class ConfigService
         }
 
         $this->putCache();
+
+        event(new ConfigForgotten($path));
 
         return true;
     }
@@ -139,20 +209,28 @@ class ConfigService
     {
         $this->loaded = false;
         $this->items = [];
-        $this->getCacheStore()->forget($this->getCacheKey());
+        $this->cacheVersion = null;
+        $this->invalidateCache();
         $this->ensureLoaded();
     }
 
     protected function ensureLoaded(): void
     {
         if ($this->loaded) {
-            return;
+            if ($this->isCacheEnabled() && $this->getRemoteCacheVersion() !== $this->cacheVersion) {
+                $this->loaded = false;
+                $this->items = [];
+                $this->cacheVersion = null;
+            } else {
+                return;
+            }
         }
 
         if ($this->isCacheEnabled()) {
-            $cached = $this->getCacheStore()->get($this->getCacheKey());
+            $cached = $this->cacheStore->get($this->getCacheKey());
             if (is_array($cached)) {
-                $this->items = $cached;
+                $this->items = $this->normalizeCachedItems($cached);
+                $this->cacheVersion = $this->getRemoteCacheVersion();
                 $this->loaded = true;
 
                 return;
@@ -161,33 +239,30 @@ class ConfigService
 
         $this->loadFromDatabase();
         $this->putCache();
+        $this->cacheVersion = $this->getRemoteCacheVersion();
         $this->loaded = true;
     }
 
     protected function loadFromDatabase(): void
     {
-        $this->items = ConfigModel::query()
-            ->get()
-            ->reduce(function (array $items, ConfigModel $record): array {
-                $group = (string) $record->group;
-                $key = (string) $record->key;
-                $items[$group] ??= [];
-                $items[$group][$key] = $this->normalizeValue(
-                    $record->value,
-                    $record->type ?? 'string'
-                );
+        $this->items = [];
 
-                return $items;
-            }, []);
+        foreach (ConfigModel::query()->get() as $record) {
+            $group = (string) $record->group;
+            $key = (string) $record->key;
+            $this->items[$group] ??= [];
+            $this->items[$group][$key] = $this->normalizeStoredValue(
+                $record->value,
+                $record->type ?? 'string'
+            );
+        }
     }
 
     public function ensureIndexes(): string
     {
         $indexName = 'config_group_key_unique';
 
-        /** @var MongoBuilder<ConfigModel> $query */
-        $query = ConfigModel::query();
-        $query->raw(function ($collection) use ($indexName) {
+        ConfigModel::query()->raw(function ($collection) use ($indexName) {
             return $collection->createIndex(
                 ['group' => 1, 'key' => 1],
                 ['name' => $indexName, 'unique' => true]
@@ -203,7 +278,7 @@ class ConfigService
             return;
         }
 
-        $this->getCacheStore()->put(
+        $this->cacheStore->put(
             $this->getCacheKey(),
             $this->items,
             $this->getCacheTtl()
@@ -216,7 +291,29 @@ class ConfigService
             return;
         }
 
-        $this->getCacheStore()->forget($this->getCacheKey());
+        $this->cacheStore->forget($this->getCacheKey());
+    }
+
+    protected function bumpCacheVersion(): void
+    {
+        if (! $this->isCacheEnabled()) {
+            return;
+        }
+
+        $version = $this->getRemoteCacheVersion() + 1;
+        $this->cacheStore->put($this->getCacheVersionKey(), $version, $this->getCacheTtl());
+        $this->cacheVersion = $version;
+    }
+
+    protected function getRemoteCacheVersion(): int
+    {
+        if (! $this->isCacheEnabled()) {
+            return 0;
+        }
+
+        $value = $this->cacheStore->get($this->getCacheVersionKey(), 0);
+
+        return is_numeric($value) ? (int) $value : 0;
     }
 
     protected function parsePath(string $path): ConfigPath
@@ -224,51 +321,169 @@ class ConfigService
         return ConfigPath::fromString($path);
     }
 
+    protected function normalizeStoredValue(mixed $value, string $type): mixed
+    {
+        $configType = ConfigType::tryFrom($type);
+
+        if ($configType === null) {
+            return $value;
+        }
+
+        return $this->normalizeValue($value, $configType);
+    }
+
+    /**
+     * @param  array<mixed, mixed>  $cached
+     * @return array<string, array<string, mixed>>
+     */
+    protected function normalizeCachedItems(array $cached): array
+    {
+        $items = [];
+
+        foreach ($cached as $group => $keys) {
+            if (! is_string($group) || ! is_array($keys)) {
+                continue;
+            }
+
+            $items[$group] = [];
+
+            foreach ($keys as $key => $value) {
+                if (is_string($key)) {
+                    $items[$group][$key] = $value;
+                }
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return array<int|string, mixed>
+     */
     protected function normalizeArrayValue(mixed $value): array
     {
         if (is_array($value)) {
             return $value;
         }
+
         if (is_string($value)) {
-            return (array) json_decode($value, true);
+            return $this->decodeJsonArray($value);
         }
 
         return (array) $value;
     }
 
-    protected function normalizeValue(mixed $value, string $type): mixed
+    /**
+     * @param  array<mixed, mixed>  $value
+     * @return array<string, mixed>
+     */
+    protected function normalizeArrayMap(array $value): array
+    {
+        $result = [];
+
+        foreach ($value as $key => $item) {
+            if (is_string($key)) {
+                $result[$key] = $item;
+            }
+        }
+
+        return $result;
+    }
+
+    protected function normalizeValue(mixed $value, ConfigType $type): mixed
     {
         return match ($type) {
-            'string' => (string) $value,
-            'int' => (int) $value,
-            'float' => (float) $value,
-            'bool' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
-            'array' => $this->normalizeArrayValue($value),
-            'json' => is_string($value) ? (array) json_decode($value, true) : (array) $value,
-            'null' => null,
-            default => $value,
+            ConfigType::String => is_scalar($value) || $value === null ? (string) $value : '',
+            ConfigType::Int => is_numeric($value) ? (int) $value : 0,
+            ConfigType::Float => is_numeric($value) ? (float) $value : 0.0,
+            ConfigType::Bool => filter_var($value, FILTER_VALIDATE_BOOLEAN),
+            ConfigType::Array => $this->normalizeArrayValue($value),
+            ConfigType::Json => is_string($value)
+                ? $this->decodeJsonArray($value)
+                : (is_array($value) ? $this->normalizeArrayMap($value) : []),
+            ConfigType::Null => null,
         };
     }
 
-    protected function inferType(mixed $value): string
+    protected function valueForStorage(mixed $value, ConfigType $type): mixed
     {
-        return match (true) {
-            $value === null => 'null',
-            is_bool($value) => 'bool',
-            is_int($value) => 'int',
-            is_float($value) => 'float',
-            is_array($value) => 'array',
-            default => 'string',
-        };
-    }
+        if ($type === ConfigType::Array || $type === ConfigType::Json) {
+            if (is_string($value)) {
+                $this->decodeJsonArray($value);
 
-    protected function valueForStorage(mixed $value, string $type): mixed
-    {
-        if ($type === 'array' || $type === 'json') {
-            return is_string($value) ? $value : json_encode($value);
+                return $value;
+            }
+
+            return $this->encodeJson($value);
         }
 
         return $value;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function decodeJsonArray(string $value): array
+    {
+        try {
+            $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException('Invalid JSON value: '.$exception->getMessage(), 0, $exception);
+        }
+
+        if (! is_array($decoded)) {
+            throw new InvalidArgumentException('JSON value must decode to an array.');
+        }
+
+        $result = [];
+
+        foreach ($decoded as $key => $item) {
+            if (is_string($key)) {
+                $result[$key] = $item;
+            }
+        }
+
+        return $result;
+    }
+
+    protected function encodeJson(mixed $value): string
+    {
+        try {
+            $encoded = json_encode($value, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException(
+                'Unable to encode value as JSON: '.$exception->getMessage(),
+                0,
+                $exception
+            );
+        }
+
+        return $encoded;
+    }
+
+    /**
+     * @template T
+     *
+     * @param  callable(mixed): (?T)  $assert
+     * @return T|null
+     */
+    protected function typedGet(string $path, mixed $default, callable $assert): mixed
+    {
+        if (! $this->has($path)) {
+            return $default;
+        }
+
+        $value = $this->get($path);
+        $typed = $assert($value);
+
+        if ($typed === null && $value !== null) {
+            throw new InvalidArgumentException(sprintf(
+                'Config value at [%s] is not the expected type.',
+                $path
+            ));
+        }
+
+        return $typed;
     }
 
     protected function isCacheEnabled(): bool
@@ -278,18 +493,26 @@ class ConfigService
 
     protected function getCacheKey(): string
     {
-        return config('config-store.cache_key', 'jooservices_config_all');
+        $value = config('config-store.cache_key', 'jooservices_config_all');
+
+        return is_string($value) ? $value : 'jooservices_config_all';
+    }
+
+    protected function getCacheVersionKey(): string
+    {
+        $configured = config('config-store.cache_version_key');
+
+        if (is_string($configured) && $configured !== '') {
+            return $configured;
+        }
+
+        return $this->getCacheKey().':version';
     }
 
     protected function getCacheTtl(): int
     {
-        return (int) config('config-store.cache_ttl', 3600);
-    }
+        $value = config('config-store.cache_ttl', 3600);
 
-    protected function getCacheStore(): Repository
-    {
-        $store = config('config-store.cache_store');
-
-        return cache()->store($store ?? config('cache.default', 'array'));
+        return is_numeric($value) ? (int) $value : 3600;
     }
 }

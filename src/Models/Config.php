@@ -7,6 +7,8 @@ namespace JOOservices\LaravelConfig\Models;
 use MongoDB\Laravel\Eloquent\Model;
 
 /**
+ * @internal Direct model writes bypass normalization and cache coherence.
+ *
  * @property string $group
  * @property string $key
  * @property mixed $value
@@ -16,7 +18,7 @@ class Config extends Model
 {
     protected $connection = 'mongodb';
 
-    protected $collection = 'configs';
+    protected string $collection = 'configs';
 
     protected $fillable = [
         'group',
@@ -24,9 +26,4 @@ class Config extends Model
         'value',
         'type',
     ];
-
-    public function getCollectionName(): string
-    {
-        return $this->collection;
-    }
 }

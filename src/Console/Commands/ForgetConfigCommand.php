@@ -4,20 +4,19 @@ declare(strict_types=1);
 
 namespace JOOservices\LaravelConfig\Console\Commands;
 
-use Illuminate\Console\Command;
 use InvalidArgumentException;
-use JOOservices\LaravelConfig\Services\ConfigService;
+use JOOservices\LaravelConfig\Contracts\ConfigStore;
 
-class ForgetConfigCommand extends Command
+class ForgetConfigCommand extends ConfigCommand
 {
     protected $signature = 'config-store:forget {path}';
 
     protected $description = 'Forget a config-store value by path.';
 
-    public function handle(ConfigService $configService): int
+    public function handle(ConfigStore $configService): int
     {
         try {
-            $deleted = $configService->forget((string) $this->argument('path'));
+            $deleted = $configService->forget($this->pathArgument());
         } catch (InvalidArgumentException $exception) {
             $this->warn($exception->getMessage());
 

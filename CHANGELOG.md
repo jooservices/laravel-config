@@ -4,6 +4,17 @@ All notable changes to `jooservices/laravel-config` should be documented here.
 
 ## Unreleased
 
+## 1.3.0 - 2026-07-06
+
+- add version-stamped cache coherence, `ConfigType` validation, JSON error hardening, typed getters, `Config::fake()`, and list/doctor/import/export commands
+- add `ConfigStore` contract, `ConfigChanged` / `ConfigForgotten` events, and `remember()` helper
+- align CI with jooservices/dto: PHPStan max + strict rules, coverage gate, SHA-pinned actions, dependency review, TruffleHog scanning
+- add captainhook, `.editorconfig`, `.gitattributes`, `.gitleaks.toml`, and AI instruction sync verification
+- document Laravel 11 as constraint-compatible but not CI-verified; CI matrix covers Laravel 12 and 13
+- add import support for typed entries via `{"__type": "...", "__value": ...}` metadata objects
+- raise CI coverage gate to 95% with expanded integration tests for commands, cache coherence, and edge cases
+- add `composer bench` / `composer bench:quick` phpbench harness for config type parsing benchmarks
+
 ## 1.2.0 - 2026-06-25
 
 - add Laravel 13 support alongside Laravel 11 and 12: `illuminate/support`, `illuminate/cache`, `illuminate/config`, and `illuminate/database` now accept `^11.0|^12.0|^13.0`
