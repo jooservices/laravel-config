@@ -21,6 +21,12 @@ use JOOservices\LaravelConfig\Testing\FakeConfigStore;
  * @method static mixed remember(string $path, mixed $default, ?string $type = null)
  * @method static bool has(string $path)
  * @method static bool forget(string $path)
+ * @method static \Illuminate\Support\Collection<int, array{
+ *     group: string,
+ *     key: string,
+ *     value: mixed,
+ *     type: string
+ * }> listOrdered()
  * @method static array<string, mixed> group(string $group)
  * @method static array<string, array<string, mixed>> all()
  * @method static void refresh()

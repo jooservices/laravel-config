@@ -41,6 +41,22 @@ class FakeConfigStoreTest extends TestCase
         $this->assertFalse($fake->has('system.temp'));
     }
 
+    public function test_fake_config_store_list_ordered_returns_sorted_models(): void
+    {
+        $fake = new FakeConfigStore([
+            'payment' => ['b' => 2, 'a' => 3],
+            'system' => ['a' => 1],
+        ]);
+
+        $items = $fake->listOrdered();
+
+        $paths = $items->map(
+            fn (array $row): string => $row['group'].'.'.$row['key']
+        )->all();
+
+        $this->assertSame(['payment.a', 'payment.b', 'system.a'], $paths);
+    }
+
     public function test_fake_config_store_remember_and_fresh(): void
     {
         $fake = new FakeConfigStore();

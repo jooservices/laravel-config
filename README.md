@@ -35,7 +35,7 @@ php artisan vendor:publish --tag=config-store-config
 - stores values as `group`, `key`, `value`, and `type` documents in MongoDB
 - loads a full in-memory map on first read and optionally caches that map
 - supports typed normalization for `string`, `int`, `float`, `bool`, `array`, `json`, and `null`
-- provides runtime `get`, typed getters, `set`, `forget`, `remember`, `group`, `all`, `refresh`, and `fresh` operations
+- provides runtime `get`, typed getters, `set`, `forget`, `remember`, `listOrdered`, `group`, `all`, `refresh`, and `fresh` operations
 - ships Artisan commands for common operator tasks
 - provides `Config::fake()` for consumer-app tests without MongoDB
 

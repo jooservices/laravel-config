@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JOOservices\LaravelConfig\Services;
 
 use Illuminate\Contracts\Cache\Repository;
+use Illuminate\Support\Collection;
 use InvalidArgumentException;
 use JOOservices\LaravelConfig\Contracts\ConfigStore;
 use JOOservices\LaravelConfig\Events\ConfigChanged;
@@ -189,6 +190,26 @@ class ConfigService implements ConfigStore
         event(new ConfigForgotten($path));
 
         return true;
+    }
+
+    /**
+     * @return Collection<int, array{group: string, key: string, value: mixed, type: string}>
+     */
+    public function listOrdered(): Collection
+    {
+        return ConfigModel::query()
+            ->orderBy('group')
+            ->orderBy('key')
+            ->get()
+            ->map(function (object $record): array {
+                return [
+                    'group' => $this->stringifyScalar($record->group ?? null),
+                    'key' => $this->stringifyScalar($record->key ?? null),
+                    'value' => $record->value ?? null,
+                    'type' => $this->stringifyScalar($record->type ?? null),
+                ];
+            })
+            ->values();
     }
 
     public function group(string $group): array
@@ -484,6 +505,15 @@ class ConfigService implements ConfigStore
         }
 
         return $typed;
+    }
+
+    private function stringifyScalar(mixed $value): string
+    {
+        if (! is_scalar($value) && $value !== null) {
+            return '';
+        }
+
+        return (string) $value;
     }
 
     protected function isCacheEnabled(): bool

@@ -124,6 +124,21 @@ class ConfigServiceTest extends TestCase
         $this->assertFalse($result);
     }
 
+    public function test_list_ordered_returns_sorted_models(): void
+    {
+        Config::set('payment.b', 2);
+        Config::set('system.a', 1);
+        Config::set('payment.a', 3);
+
+        $items = Config::listOrdered();
+
+        $paths = $items->map(
+            fn (array $row): string => $row['group'].'.'.$row['key']
+        )->all();
+
+        $this->assertSame(['payment.a', 'payment.b', 'system.a'], $paths);
+    }
+
     public function test_group_returns_group_config(): void
     {
         Config::set('system.a', 1);

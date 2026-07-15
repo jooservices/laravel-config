@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JOOservices\LaravelConfig\Testing;
 
+use Illuminate\Support\Collection;
 use JOOservices\LaravelConfig\Contracts\ConfigStore;
 use JOOservices\LaravelConfig\Support\ConfigPath;
 use JOOservices\LaravelConfig\Support\ConfigType;
@@ -139,6 +140,37 @@ class FakeConfigStore implements ConfigStore
         return true;
     }
 
+    /**
+     * @return Collection<int, array{group: string, key: string, value: mixed, type: string}>
+     */
+    public function listOrdered(): Collection
+    {
+        return collect($this->items)
+            ->flatMap(function (array $keys, string $group): array {
+                $records = [];
+
+                foreach ($keys as $key => $value) {
+                    if (! is_string($key)) {
+                        continue;
+                    }
+
+                    $records[] = [
+                        'group' => $group,
+                        'key' => $key,
+                        'value' => $value,
+                        'type' => $this->inferType($value),
+                    ];
+                }
+
+                return $records;
+            })
+            ->sortBy([
+                ['group', 'asc'],
+                ['key', 'asc'],
+            ])
+            ->values();
+    }
+
     public function group(string $group): array
     {
         return $this->items[$group] ?? [];
@@ -173,6 +205,19 @@ class FakeConfigStore implements ConfigStore
             ConfigType::Bool => filter_var($value, FILTER_VALIDATE_BOOLEAN),
             ConfigType::Array, ConfigType::Json => is_array($value) ? $value : [],
             ConfigType::Null => null,
+        };
+    }
+
+    protected function inferType(mixed $value): string
+    {
+        return match (true) {
+            is_string($value) => ConfigType::String->value,
+            is_int($value) => ConfigType::Int->value,
+            is_float($value) => ConfigType::Float->value,
+            is_bool($value) => ConfigType::Bool->value,
+            is_array($value) => ConfigType::Array->value,
+            $value === null => ConfigType::Null->value,
+            default => ConfigType::String->value,
         };
     }
 }
