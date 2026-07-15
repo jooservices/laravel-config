@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace JOOservices\LaravelConfig\Contracts;
 
+use Illuminate\Support\Collection;
+
 interface ConfigStore
 {
     public function get(string $path, mixed $default = null): mixed;
@@ -31,6 +33,11 @@ interface ConfigStore
     public function has(string $path): bool;
 
     public function forget(string $path): bool;
+
+    /**
+     * @return Collection<int, array{group: string, key: string, value: mixed, type: string}>
+     */
+    public function listOrdered(): Collection;
 
     /**
      * @return array<string, mixed>

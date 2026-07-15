@@ -4,6 +4,8 @@ All notable changes to `jooservices/laravel-config` should be documented here.
 
 ## Unreleased
 
+- add package-owned ordered config listing API so consumer apps can stop querying config documents directly
+
 ## 1.3.0 - 2026-07-06
 
 - add version-stamped cache coherence, `ConfigType` validation, JSON error hardening, typed getters, `Config::fake()`, and list/doctor/import/export commands
