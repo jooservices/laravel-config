@@ -9,6 +9,7 @@ use InvalidArgumentException;
 use JOOservices\LaravelConfig\Console\Commands\ImportConfigCommand;
 use JOOservices\LaravelConfig\Console\Commands\SetConfigCommand;
 use ReflectionMethod;
+use ReflectionObject;
 use Symfony\Component\Console\Input\ArrayInput;
 
 class ConfigCommandTest extends TestCase
@@ -54,7 +55,7 @@ class ConfigCommandTest extends TestCase
     {
         $input = new ArrayInput($arguments, $command->getDefinition());
 
-        $reflection = new \ReflectionObject($command);
+        $reflection = new ReflectionObject($command);
         $inputProperty = $reflection->getProperty('input');
         $inputProperty->setAccessible(true);
         $inputProperty->setValue($command, $input);

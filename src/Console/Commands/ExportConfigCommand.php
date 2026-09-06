@@ -24,7 +24,7 @@ class ExportConfigCommand extends Command
         try {
             $json = json_encode($items, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT);
         } catch (JsonException $exception) {
-            $this->error('Unable to encode config values as JSON: '.$exception->getMessage());
+            $this->error('Unable to encode config values as JSON: ' . $exception->getMessage());
 
             return self::FAILURE;
         }
@@ -45,7 +45,7 @@ class ExportConfigCommand extends Command
                 return self::FAILURE;
             }
 
-            $this->info('Config values exported to '.$file);
+            $this->info('Config values exported to ' . $file);
 
             return self::SUCCESS;
         }

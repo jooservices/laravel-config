@@ -1,18 +1,17 @@
 # Dedicated CI for jooservices/laravel-config — GitHub-hosted runners
-# Pull-request quality gate: full pipeline. Post-merge heads run ci-post-merge.yml.
-name: CI
+# Post-merge sanity on master/develop heads. Full PR gate lives in ci.yml.
+name: CI post-merge
 
 on:
-  pull_request:
+  push:
     branches: [master, develop]
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-post-merge-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
-  pull-requests: read
   actions: read
 
 env:
@@ -46,115 +45,9 @@ jobs:
       - name: Composer validate
         run: composer validate --strict
 
-  lint:
-    name: Lint (${{ matrix.name }})
-    needs: [validate]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - name: Pint
-            command: lint:pint
-          - name: PHPCS
-            command: lint:phpcs
-          - name: PHPStan
-            command: lint:phpstan
-          - name: PHPMD
-            command: lint:phpmd
-          - name: PHP-CS-Fixer
-            command: lint:cs
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: ${{ env.PHP_VERSION }}
-          extensions: mbstring, json, mongodb
-          coverage: none
-
-      - name: Install Composer dependencies
-        uses: ramsey/composer-install@v4
-        with:
-          ignore-cache: true
-
-      - name: Run linter
-        run: composer ${{ matrix.command }}
-
-  security:
-    name: Security (${{ matrix.name }})
-    needs: [lint]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - name: Dependencies
-          - name: Secrets
-          - name: SAST
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Setup PHP
-        if: matrix.name == 'Dependencies'
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: ${{ env.PHP_VERSION }}
-          extensions: mbstring, json, mongodb
-          coverage: none
-
-      - name: Install Composer dependencies
-        if: matrix.name == 'Dependencies'
-        uses: ramsey/composer-install@v4
-        with:
-          ignore-cache: true
-
-      - name: Composer audit
-        if: matrix.name == 'Dependencies'
-        run: composer audit
-
-      - name: OSV Scanner
-        if: matrix.name == 'Dependencies'
-        uses: google/osv-scanner-action/osv-scanner-action@6e4298ebc4db23e847df9b2e2de2939d6f066c67 # v2.5.1
-        with:
-          scan-args: |-
-            --recursive
-            .
-
-      - name: Dependency Review
-        if: matrix.name == 'Dependencies'
-        uses: actions/dependency-review-action@v5
-
-      - name: Gitleaks OSS CLI
-        if: matrix.name == 'Secrets'
-        run: |
-          docker run --rm \
-            --volume "${GITHUB_WORKSPACE}:/repo:ro" \
-            --workdir /repo \
-            ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb \
-            detect --source . --config .gitleaks.toml --redact --exit-code 1
-
-      - name: Semgrep (OSS)
-        if: matrix.name == 'SAST'
-        run: |
-          docker run --rm \
-            --volume "${GITHUB_WORKSPACE}:/src:ro" \
-            semgrep/semgrep@sha256:67319956da3dcb58baf5b322899c15458e3963e7018a86aeeb5cd224e69cb77a \
-            semgrep scan --config p/php --error
-
   test:
     name: Test (${{ matrix.name }})
-    needs: [lint]
+    needs: [validate]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -217,13 +110,13 @@ jobs:
         if: matrix.coverage
         uses: actions/upload-artifact@v7
         with:
-          name: coverage-Laravel${{ matrix.laravel }}
+          name: coverage-post-merge-Laravel${{ matrix.laravel }}
           path: build/coverage/clover-Laravel${{ matrix.laravel }}.xml
           if-no-files-found: error
 
   coverage:
     name: Coverage upload
-    needs: [test, security]
+    needs: [test]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -236,7 +129,7 @@ jobs:
       - name: Download coverage artifacts
         uses: actions/download-artifact@v8
         with:
-          pattern: coverage-*
+          pattern: coverage-post-merge-*
           path: build/coverage/matrix
           merge-multiple: true
 
@@ -244,12 +137,12 @@ jobs:
         run: |
           set -euo pipefail
           clover="build/coverage/matrix/clover-Laravel12.xml"
-          php tools/coverage-enforce.php "$clover" 94
+          php tools/coverage-enforce.php "$clover" 95
           mkdir -p build/coverage
           cp "$clover" build/coverage/clover-combined.xml
 
       - name: Upload to Codecov
-        if: github.event.pull_request.user.type != 'Bot' && env.CODECOV_TOKEN != ''
+        if: env.CODECOV_TOKEN != ''
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         uses: codecov/codecov-action@v7
@@ -266,7 +159,7 @@ jobs:
         run: echo "CODECOV_TOKEN is not configured; skipping Codecov upload."
 
       - name: Resolve SonarQube host URL
-        if: github.event.pull_request.user.type != 'Bot' && env.SONAR_TOKEN != ''
+        if: env.SONAR_TOKEN != ''
         id: sonar-config
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -286,7 +179,7 @@ jobs:
           echo "host_url=${host_url}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload SonarQube analysis
-        if: github.event.pull_request.user.type != 'Bot' && env.SONAR_TOKEN != ''
+        if: env.SONAR_TOKEN != ''
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ steps.sonar-config.outputs.host_url }}

@@ -19,7 +19,7 @@ class SetConfigCommand extends ConfigCommand
             $configService->set(
                 $this->pathArgument(),
                 $this->argument('value'),
-                $this->typeOption()
+                $this->typeOption(),
             );
         } catch (InvalidArgumentException $exception) {
             $this->error($exception->getMessage());

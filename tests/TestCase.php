@@ -30,13 +30,16 @@ class TestCase extends Orchestra
 
     protected function getPackageAliases($app): array
     {
+        // Do not bind as Laravel's `Config` — that would shadow illuminate/config.
         return [
-            'Config' => Config::class,
+            'ConfigStore' => Config::class,
         ];
     }
 
     protected function getEnvironmentSetUp($app): void
     {
+        $app['config']->set('app.key', 'base64:' . base64_encode(random_bytes(32)));
+
         $app['config']->set('database.connections.mongodb', [
             'driver' => 'mongodb',
             'dsn' => env('MONGODB_URI', env('MONGO_URI', 'mongodb://localhost:27017')),

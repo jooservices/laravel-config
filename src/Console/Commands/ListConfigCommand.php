@@ -29,7 +29,7 @@ class ListConfigCommand extends Command
             try {
                 $this->line((string) json_encode($items, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
             } catch (JsonException $exception) {
-                $this->error('Unable to encode config values as JSON: '.$exception->getMessage());
+                $this->error('Unable to encode config values as JSON: ' . $exception->getMessage());
 
                 return self::FAILURE;
             }

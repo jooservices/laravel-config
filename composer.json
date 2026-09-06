@@ -1,13 +1,24 @@
 {
     "name": "jooservices/laravel-config",
-    "description": "Store and retrieve application configuration in database (MongoDB) with caching.",
+    "description": "MongoDB-backed application configuration store for Laravel with typed access and caching",
     "type": "library",
-    "keywords": ["laravel", "config", "mongodb", "configuration"],
+    "keywords": [
+        "caching",
+        "config",
+        "configuration",
+        "jooservices",
+        "laravel",
+        "laravel12",
+        "laravel13",
+        "mongodb",
+        "php",
+        "php85"
+    ],
     "license": "MIT",
     "authors": [
         {
-            "name": "JOOservices",
-            "email": "admin@jooservices.com"
+            "name": "Viet Vu",
+            "email": "jooservices@gmail.com"
         }
     ],
     "support": {
@@ -16,25 +27,29 @@
     },
     "require": {
         "php": "^8.5",
-        "illuminate/support": "^11.0|^12.0|^13.0",
-        "illuminate/cache": "^11.0|^12.0|^13.0",
-        "illuminate/config": "^11.0|^12.0|^13.0",
-        "illuminate/database": "^11.0|^12.0|^13.0",
-        "mongodb/laravel-mongodb": "^5.4"
+        "illuminate/cache": "^12.0|^13.0",
+        "illuminate/config": "^12.0|^13.0",
+        "illuminate/contracts": "^12.0|^13.0",
+        "illuminate/database": "^12.0|^13.0",
+        "illuminate/encryption": "^12.0|^13.0",
+        "illuminate/support": "^12.0|^13.0",
+        "laravel/framework": "^12.0|^13.0",
+        "mongodb/laravel-mongodb": "^5.7"
     },
     "require-dev": {
         "captainhook/captainhook": "^5.25",
         "captainhook/plugin-composer": "^5.3",
+        "fakerphp/faker": "^1.24",
         "friendsofphp/php-cs-fixer": "^3.65",
-        "laravel/pint": "^1.0",
-        "orchestra/testbench": "^9.0|^10.0|^11.0",
-        "phpmd/phpmd": "^2.13",
-        "phpbench/phpbench": "^1.6",
-        "phpstan/phpstan": "^2.0",
+        "larastan/larastan": "^3.9",
+        "laravel/pint": "^1.27",
+        "orchestra/testbench": "^10.0|^11.0",
+        "phpmd/phpmd": "^2.15",
+        "phpstan/phpstan": "^2.1",
         "phpstan/phpstan-phpunit": "^2.0",
         "phpstan/phpstan-strict-rules": "^2.0",
-        "phpunit/phpunit": "^12.0",
-        "squizlabs/php_codesniffer": "^3.0"
+        "phpunit/phpunit": "^12.0 || ^13.0",
+        "squizlabs/php_codesniffer": "^4.0"
     },
     "autoload": {
         "psr-4": {
@@ -46,56 +61,52 @@
             "JOOservices\\LaravelConfig\\Tests\\": "tests/"
         }
     },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "JOOservices\\LaravelConfig\\ConfigServiceProvider"
+            ]
+        }
+    },
     "scripts": {
-        "test": "vendor/bin/phpunit",
-        "test:coverage": "vendor/bin/phpunit --coverage-text --coverage-clover build/coverage/clover.xml",
-        "bench": "phpbench run --report=default",
-        "bench:quick": "phpbench run --report=default --revs=100 --iterations=3",
-        "instructions:verify": "php tools/verify-ai-instructions-sync.php",
-        "lint:pint": "vendor/bin/pint --test",
-        "lint:pint:fix": "vendor/bin/pint",
-        "lint:phpstan": "XDEBUG_MODE=off vendor/bin/phpstan analyse --memory-limit=512M",
-        "lint:phpmd": "php -d error_reporting=6143 vendor/bin/phpmd src text phpmd.xml",
-        "lint:phpcs": "vendor/bin/phpcs src tests --standard=phpcs.xml",
-        "lint:cs": "vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php --dry-run --diff --sequential",
-        "lint:cs:fix": "vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php --sequential",
+        "test": "phpunit -c phpunit.xml",
+        "test:coverage": "phpunit -c phpunit.xml --coverage-text --coverage-clover build/coverage/clover.xml --coverage-html build/coverage/html",
+        "lint:pint": "pint --test",
+        "lint:pint:fix": "pint",
+        "lint:cs": "php-cs-fixer fix --config=.php-cs-fixer.dist.php --dry-run --diff --sequential",
+        "lint:cs:fix": "php-cs-fixer fix --config=.php-cs-fixer.dist.php --sequential",
+        "lint:phpstan": "phpstan analyse --memory-limit=512M",
+        "lint:phpmd": "@php -d error_reporting=24575 vendor/bin/phpmd src,tests text phpmd.xml",
+        "lint:phpcs": "phpcs --standard=phpcs.xml",
         "lint": [
             "@lint:pint",
             "@lint:phpcs",
-            "@lint:phpstan"
-        ],
-        "lint:all": [
-            "@lint",
+            "@lint:phpstan",
             "@lint:phpmd",
-            "@lint:cs",
-            "@instructions:verify"
+            "@lint:cs"
         ],
         "lint:fix": [
             "@lint:pint:fix",
             "@lint:cs:fix"
         ],
         "check": [
-            "@lint:all",
+            "@lint",
             "@test"
         ],
         "ci": [
-            "@lint:all",
+            "@lint",
             "@test:coverage"
         ],
         "post-install-cmd": "captainhook install --force --skip-existing",
-        "post-update-cmd": "captainhook install --force --skip-existing"
+        "post-update-cmd": "captainhook install --force --skip-existing",
+        "lint:all": [
+            "@lint"
+        ]
     },
     "config": {
         "sort-packages": true,
         "allow-plugins": {
             "captainhook/plugin-composer": true
-        }
-    },
-    "extra": {
-        "laravel": {
-            "providers": [
-                "JOOservices\\LaravelConfig\\ConfigServiceProvider"
-            ]
         }
     },
     "minimum-stability": "stable",

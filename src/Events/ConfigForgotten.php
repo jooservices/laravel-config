@@ -14,5 +14,6 @@ class ConfigForgotten
 
     public function __construct(
         public readonly string $path,
-    ) {}
+    ) {
+    }
 }

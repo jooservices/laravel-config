@@ -15,11 +15,12 @@ enum ConfigType: string
     case Array = 'array';
     case Json = 'json';
     case Null = 'null';
+    case Encrypted = 'encrypted';
 
     public static function parse(string $type): self
     {
         return self::tryFrom($type) ?? throw new InvalidArgumentException(
-            sprintf('Unsupported config type [%s]. Supported types: %s.', $type, self::supportedList())
+            sprintf('Unsupported config type [%s]. Supported types: %s.', $type, self::supportedList()),
         );
     }
 
@@ -35,12 +36,17 @@ enum ConfigType: string
         };
     }
 
+    public function isSensitive(): bool
+    {
+        return $this === self::Encrypted;
+    }
+
     /**
      * @return list<string>
      */
     public static function supportedValues(): array
     {
-        return array_map(static fn (self $type): string => $type->value, self::cases());
+        return array_map(static fn(self $type): string => $type->value, self::cases());
     }
 
     public static function supportedList(): string
