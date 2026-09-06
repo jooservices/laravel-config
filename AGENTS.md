@@ -7,4 +7,4 @@ This file adds project-only rules.
 - Persist runtime application config in MongoDB only (typed store + cache). No file-config replacement for Laravel's `config/` tree
 - Pint `per`; PHPStan + Larastan; PHPCS + PHPMD; CaptainHook required — never `--no-verify`
 - Commands: `composer lint`, `composer test`, `composer check`, `composer ci`
-- Next planned release: **v4.0.0** (breaking). Do not tag until code upgrades in `UPGRADE-4.0.md` are complete and version is confirmed
+- Current release: **v4.0.0** (breaking from `1.x`). See `UPGRADE-4.0.md` and `CHANGELOG.md`

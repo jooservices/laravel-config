@@ -9,8 +9,6 @@
 
 ## Install the package
 
-Until `v4.0.0` is tagged, install from VCS / path. After release:
-
 ```bash
 composer require jooservices/laravel-config:^4.0
 ```
