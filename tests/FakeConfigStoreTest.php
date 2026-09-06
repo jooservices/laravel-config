@@ -163,6 +163,20 @@ class FakeConfigStoreTest extends TestCase
         $fake->setMany(['' => 'value']);
     }
 
+    public function test_fake_config_store_list_paths_returns_sorted_keys(): void
+    {
+        $fake = new FakeConfigStore([
+            'payment' => ['b' => 2, 'a' => 3],
+            'system' => ['a' => 1],
+        ]);
+
+        $paths = $fake->listPaths()->map(
+            static fn(array $row): string => $row['group'] . '.' . $row['key'],
+        )->all();
+
+        $this->assertSame(['payment.a', 'payment.b', 'system.a'], $paths);
+    }
+
     public function test_fake_config_store_encrypted_normalizes_to_string(): void
     {
         $fake = new FakeConfigStore();

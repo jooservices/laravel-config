@@ -796,4 +796,42 @@ class ConfigServiceTest extends TestCase
         $this->assertStringNotContainsString('super-secret', $cached);
         $this->assertSame('super-secret', Config::get('secrets.api_token'));
     }
+
+    public function test_invalid_encrypted_cache_payload_falls_back_to_database(): void
+    {
+        Config::set('system.site_name', 'XCrawler');
+
+        $cacheKey = config('config-store.cache_key');
+        $this->assertIsString($cacheKey);
+        Cache::store('array')->put($cacheKey, ['not' => 'encrypted'], 3600);
+
+        $this->resetConfigStoreService();
+
+        $this->assertSame('XCrawler', Config::get('system.site_name'));
+    }
+
+    public function test_warm_instance_reloads_when_remote_cache_version_changes(): void
+    {
+        $service = $this->makeConfigService();
+        $service->set('system.first', 'one');
+
+        $configuredVersionKey = config('config-store.cache_version_key');
+        $cacheKey = config('config-store.cache_key');
+        $this->assertIsString($cacheKey);
+        $versionKey = is_string($configuredVersionKey) && $configuredVersionKey !== ''
+            ? $configuredVersionKey
+            : $cacheKey . ':version';
+
+        Cache::store('array')->forget($cacheKey);
+        Cache::store('array')->put($versionKey, 9999, 3600);
+
+        ConfigModel::create([
+            'group' => 'system',
+            'key' => 'second',
+            'value' => 'two',
+            'type' => 'string',
+        ]);
+
+        $this->assertSame('two', $service->get('system.second'));
+    }
 }
