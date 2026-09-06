@@ -16,5 +16,11 @@ class ConfigChanged
         public readonly string $path,
         public readonly mixed $value,
         public readonly string $type,
-    ) {}
+    ) {
+    }
+
+    public function isRedacted(): bool
+    {
+        return $this->type === 'encrypted';
+    }
 }

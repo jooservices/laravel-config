@@ -6,6 +6,7 @@ namespace JOOservices\LaravelConfig\Console\Commands;
 
 use Illuminate\Console\Command;
 use JOOservices\LaravelConfig\Services\ConfigService;
+use Throwable;
 
 class EnsureConfigIndexCommand extends Command
 {
@@ -17,8 +18,8 @@ class EnsureConfigIndexCommand extends Command
     {
         try {
             $indexName = $configService->ensureIndexes();
-        } catch (\Throwable $exception) {
-            $this->error('Failed to ensure MongoDB index: '.$exception->getMessage());
+        } catch (Throwable $exception) {
+            $this->error('Failed to ensure MongoDB index: ' . $exception->getMessage());
 
             return self::FAILURE;
         }

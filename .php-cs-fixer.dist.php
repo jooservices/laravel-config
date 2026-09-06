@@ -12,8 +12,9 @@ $finder = PhpCsFixer\Finder::create()
     ->ignoreDotFiles(true)
     ->ignoreVCS(true);
 
-// Pint remains the primary formatter. PHP-CS-Fixer is limited to PHPDoc cleanup
-// so this check complements the existing Laravel formatting rules.
+// Pint is the primary formatter for this repository.
+// PHP-CS-Fixer is intentionally limited to PHPDoc cleanup that does not compete
+// with Pint's Laravel formatting responsibilities.
 return (new PhpCsFixer\Config())
     ->setRiskyAllowed(false)
     ->setRules([

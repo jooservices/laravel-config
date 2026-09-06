@@ -28,11 +28,36 @@ interface ConfigStore
 
     public function set(string $path, mixed $value, ?string $type = null): void;
 
+    /**
+     * Persist many paths in one write cycle (single cache version bump).
+     *
+     * @param  array<string, array{value: mixed, type?: string|null}|mixed>  $entries
+     *         Map of path => value, or path => ['value' => mixed, 'type' => ?string]
+     */
+    public function setMany(array $entries): void;
+
     public function remember(string $path, mixed $default, ?string $type = null): mixed;
 
     public function has(string $path): bool;
 
     public function forget(string $path): bool;
+
+    /**
+     * Remove many paths in one write cycle (single cache version bump).
+     *
+     * @param  array<int, string>  $paths
+     */
+    public function forgetMany(array $paths): int;
+
+    /**
+     * Remove every stored config path in one write cycle (single cache version bump).
+     */
+    public function clear(): int;
+
+    /**
+     * @return Collection<int, array{group: string, key: string}>
+     */
+    public function listPaths(): Collection;
 
     /**
      * @return Collection<int, array{group: string, key: string, value: mixed, type: string}>

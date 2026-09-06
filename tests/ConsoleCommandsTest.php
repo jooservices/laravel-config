@@ -124,15 +124,17 @@ class ConsoleCommandsTest extends TestCase
     {
         Config::set('system.site_name', 'XCrawler');
         Config::set('system.enabled', true, 'bool');
+        Config::set('system.secret', 's3cret', 'encrypted');
 
-        $file = sys_get_temp_dir().'/config-store-export-'.uniqid('', true).'.json';
+        $file = sys_get_temp_dir() . '/config-store-export-' . uniqid('', true) . '.json';
 
-        $this->artisan('config-store:export', ['file' => $file])
+        $this->artisan('config-store:export', ['file' => $file, '--reveal-secrets' => true])
             ->expectsOutputToContain('Config values exported')
             ->assertSuccessful();
 
         Config::forget('system.site_name');
         Config::forget('system.enabled');
+        Config::forget('system.secret');
 
         $this->artisan('config-store:import', ['file' => $file, '--merge' => true])
             ->expectsOutputToContain('Imported')
@@ -142,7 +144,28 @@ class ConsoleCommandsTest extends TestCase
 
         $this->assertSame('XCrawler', Config::get('system.site_name'));
         $this->assertTrue(Config::get('system.enabled'));
+        $this->assertSame('s3cret', Config::get('system.secret'));
+        $this->assertSame('encrypted', Config::listOrdered()->firstWhere('key', 'secret')['type'] ?? null);
 
+        unlink($file);
+    }
+
+    public function test_export_skips_encrypted_without_reveal_secrets(): void
+    {
+        Config::set('system.site_name', 'XCrawler');
+        Config::set('system.secret', 's3cret', 'encrypted');
+
+        $this->artisan('config-store:export')
+            ->expectsOutputToContain('Skipped 1 encrypted value(s)')
+            ->doesntExpectOutputToContain('s3cret')
+            ->assertSuccessful();
+
+        $file = sys_get_temp_dir() . '/config-store-skip-' . uniqid('', true) . '.json';
+        $this->artisan('config-store:export', ['file' => $file])->assertSuccessful();
+        $contents = (string) file_get_contents($file);
+        $this->assertStringContainsString('__type', $contents);
+        $this->assertStringContainsString('site_name', $contents);
+        $this->assertStringNotContainsString('s3cret', $contents);
         unlink($file);
     }
 
@@ -151,7 +174,7 @@ class ConsoleCommandsTest extends TestCase
         Config::set('system.site_name', 'XCrawler');
 
         $this->artisan('config-store:export')
-            ->expectsOutputToContain('"site_name": "XCrawler"')
+            ->expectsOutputToContain('"__value": "XCrawler"')
             ->assertSuccessful();
     }
 
@@ -173,14 +196,14 @@ class ConsoleCommandsTest extends TestCase
     {
         Config::set('system.site_name', 'XCrawler');
 
-        $file = sys_get_temp_dir().'/config-store-export-success-'.uniqid('', true).'.json';
+        $file = sys_get_temp_dir() . '/config-store-export-success-' . uniqid('', true) . '.json';
 
         $this->artisan('config-store:export', ['file' => $file])
-            ->expectsOutputToContain('Config values exported to '.$file)
+            ->expectsOutputToContain('Config values exported to ' . $file)
             ->assertSuccessful();
 
         $this->assertFileExists($file);
-        $this->assertStringContainsString('XCrawler', (string) file_get_contents($file));
+        $this->assertStringContainsString('"__value": "XCrawler"', (string) file_get_contents($file));
 
         unlink($file);
     }
@@ -261,7 +284,7 @@ class ConsoleCommandsTest extends TestCase
         Config::set('payment.gateway', 'stripe');
 
         $this->artisan('config-store:export', ['--group' => 'system'])
-            ->expectsOutputToContain('"site_name": "XCrawler"')
+            ->expectsOutputToContain('"__value": "XCrawler"')
             ->doesntExpectOutputToContain('gateway')
             ->assertSuccessful();
     }
@@ -286,7 +309,7 @@ class ConsoleCommandsTest extends TestCase
 
     public function test_import_command_rejects_invalid_json_payload(): void
     {
-        $file = sys_get_temp_dir().'/config-store-invalid-'.uniqid('', true).'.json';
+        $file = sys_get_temp_dir() . '/config-store-invalid-' . uniqid('', true) . '.json';
         file_put_contents($file, '{invalid');
 
         $this->artisan('config-store:import', ['file' => $file])
@@ -298,7 +321,7 @@ class ConsoleCommandsTest extends TestCase
 
     public function test_import_command_rejects_non_object_json_payload(): void
     {
-        $file = sys_get_temp_dir().'/config-store-array-'.uniqid('', true).'.json';
+        $file = sys_get_temp_dir() . '/config-store-array-' . uniqid('', true) . '.json';
         file_put_contents($file, '["not","an","object"]');
 
         $this->artisan('config-store:import', ['file' => $file])
@@ -313,10 +336,10 @@ class ConsoleCommandsTest extends TestCase
         Config::set('system.keep', 'old');
         Config::set('system.remove', 'gone');
 
-        $file = sys_get_temp_dir().'/config-store-replace-'.uniqid('', true).'.json';
+        $file = sys_get_temp_dir() . '/config-store-replace-' . uniqid('', true) . '.json';
         file_put_contents($file, json_encode(['system' => ['keep' => 'new']], JSON_THROW_ON_ERROR));
 
-        $this->artisan('config-store:import', ['file' => $file])
+        $this->artisan('config-store:import', ['file' => $file, '--force' => true])
             ->expectsOutputToContain('Imported 1 config value(s).')
             ->assertSuccessful();
 
@@ -328,9 +351,37 @@ class ConsoleCommandsTest extends TestCase
         unlink($file);
     }
 
+    public function test_import_command_requires_force_for_replace_mode(): void
+    {
+        $file = sys_get_temp_dir() . '/config-store-force-' . uniqid('', true) . '.json';
+        file_put_contents($file, json_encode(['system' => ['keep' => 'new']], JSON_THROW_ON_ERROR));
+
+        $this->artisan('config-store:import', ['file' => $file])
+            ->expectsOutputToContain('requires --force')
+            ->assertFailed();
+
+        unlink($file);
+    }
+
+    public function test_import_command_dry_run_does_not_write(): void
+    {
+        Config::set('system.keep', 'old');
+
+        $file = sys_get_temp_dir() . '/config-store-dry-' . uniqid('', true) . '.json';
+        file_put_contents($file, json_encode(['system' => ['keep' => 'new']], JSON_THROW_ON_ERROR));
+
+        $this->artisan('config-store:import', ['file' => $file, '--dry-run' => true])
+            ->expectsOutputToContain('Dry-run:')
+            ->assertSuccessful();
+
+        $this->assertSame('old', Config::get('system.keep'));
+
+        unlink($file);
+    }
+
     public function test_import_command_skips_invalid_entries_and_invalid_json_values(): void
     {
-        $file = sys_get_temp_dir().'/config-store-partial-'.uniqid('', true).'.json';
+        $file = sys_get_temp_dir() . '/config-store-partial-' . uniqid('', true) . '.json';
         file_put_contents($file, json_encode([
             123 => ['ignored' => 'value'],
             'system' => [
@@ -397,7 +448,7 @@ class ConsoleCommandsTest extends TestCase
         $originalDsn = config('database.connections.mongodb.dsn');
         $this->app['config']->set(
             'database.connections.mongodb.dsn',
-            'mongodb://127.0.0.1:65530/?serverSelectionTimeoutMS=500'
+            'mongodb://127.0.0.1:65530/?serverSelectionTimeoutMS=500',
         );
         /** @var DatabaseManager $db */
         $db = $this->app['db'];
@@ -413,5 +464,169 @@ class ConsoleCommandsTest extends TestCase
             $db->purge('mongodb');
             $this->resetConfigStoreService();
         }
+    }
+
+    public function test_import_command_skips_json_scalar_document(): void
+    {
+        $file = sys_get_temp_dir() . '/config-store-scalar-json-' . uniqid('', true) . '.json';
+        file_put_contents($file, json_encode([
+            'system' => [
+                'bad' => [
+                    '__type' => 'json',
+                    '__value' => '"scalar"',
+                ],
+                'ok' => 'kept',
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->artisan('config-store:import', ['file' => $file, '--merge' => true])
+            ->expectsOutputToContain('Skipped system.bad')
+            ->expectsOutputToContain('Imported 1 config value(s).')
+            ->assertSuccessful();
+
+        $this->assertSame('kept', Config::get('system.ok'));
+
+        unlink($file);
+    }
+
+    public function test_doctor_command_passes_when_cache_disabled(): void
+    {
+        $this->app['config']->set('config-store.cache_enabled', false);
+        $this->resetConfigStoreService();
+
+        $this->artisan('config-store:doctor')
+            ->expectsOutputToContain('Config store doctor passed all checks.')
+            ->assertSuccessful();
+    }
+
+    public function test_list_command_json_with_types(): void
+    {
+        Config::set('system.site_name', 'XCrawler');
+        Config::set('system.secret', 's3cret', 'encrypted');
+
+        $this->artisan('config-store:list', [
+            'group' => 'system',
+            '--with-types' => true,
+        ])
+            ->expectsOutputToContain('system.secret (encrypted) = [redacted]')
+            ->doesntExpectOutputToContain('s3cret')
+            ->assertSuccessful();
+
+        $this->artisan('config-store:list', [
+            'group' => 'system',
+            '--json' => true,
+            '--with-types' => true,
+        ])
+            ->expectsOutputToContain('"type": "encrypted"')
+            ->doesntExpectOutputToContain('s3cret')
+            ->assertSuccessful();
+    }
+
+    public function test_list_command_json_empty_group(): void
+    {
+        $this->artisan('config-store:list', ['group' => 'missing', '--json' => true])
+            ->expectsOutput('{}')
+            ->assertSuccessful();
+    }
+
+    public function test_get_command_redacts_encrypted_values_by_default(): void
+    {
+        Config::set('system.secret', 's3cret', 'encrypted');
+
+        $this->artisan('config-store:get', ['path' => 'system.secret'])
+            ->expectsOutput('[redacted]')
+            ->assertSuccessful();
+
+        $this->artisan('config-store:get', ['path' => 'system.secret', '--reveal-secrets' => true])
+            ->expectsOutput('s3cret')
+            ->assertSuccessful();
+    }
+
+    public function test_list_command_with_types_and_redaction(): void
+    {
+        Config::set('system.secret', 's3cret', 'encrypted');
+
+        $this->artisan('config-store:list', ['group' => 'system', '--with-types' => true])
+            ->expectsOutputToContain('system.secret (encrypted) = [redacted]')
+            ->assertSuccessful();
+    }
+
+    public function test_import_force_replace_bumps_cache_once_for_clear(): void
+    {
+        Config::set('system.keep', 'old');
+        Config::set('system.remove', 'gone');
+
+        $versionKey = 'jooservices_config_all_test:version';
+        $beforeValue = \Illuminate\Support\Facades\Cache::store('array')->get($versionKey, 0);
+        $before = is_numeric($beforeValue) ? (int) $beforeValue : 0;
+
+        $file = sys_get_temp_dir() . '/config-store-replace-bump-' . uniqid('', true) . '.json';
+        file_put_contents($file, json_encode([
+            'system' => [
+                'keep' => [
+                    '__type' => 'string',
+                    '__value' => 'new',
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->artisan('config-store:import', ['file' => $file, '--force' => true])
+            ->assertSuccessful();
+
+        $afterValue = \Illuminate\Support\Facades\Cache::store('array')->get($versionKey, 0);
+        $after = is_numeric($afterValue) ? (int) $afterValue : 0;
+
+        // clear() once + setMany() once
+        $this->assertSame($before + 2, $after);
+
+        unlink($file);
+    }
+
+    public function test_doctor_command_fails_when_encrypted_values_cannot_decrypt(): void
+    {
+        ConfigModel::create([
+            'group' => 'system',
+            'key' => 'secret',
+            'value' => 'not-a-valid-payload',
+            'type' => 'encrypted',
+        ]);
+
+        $this->artisan('config-store:doctor')
+            ->expectsOutputToContain('[fail] Encrypted value decryptability')
+            ->assertFailed();
+    }
+
+    public function test_list_command_json_reveals_secrets_when_requested(): void
+    {
+        Config::set('system.secret', 's3cret', 'encrypted');
+
+        $this->artisan('config-store:list', [
+            'group' => 'system',
+            '--json' => true,
+            '--reveal-secrets' => true,
+        ])
+            ->expectsOutputToContain('s3cret')
+            ->assertSuccessful();
+    }
+
+    public function test_doctor_command_fails_when_encrypted_document_has_empty_path_parts(): void
+    {
+        ConfigModel::create([
+            'group' => '',
+            'key' => 'secret',
+            'value' => 'x',
+            'type' => 'encrypted',
+        ]);
+
+        $this->artisan('config-store:doctor')
+            ->expectsOutputToContain('[fail] Encrypted value decryptability')
+            ->assertFailed();
+    }
+
+    public function test_list_command_reports_empty_store(): void
+    {
+        $this->artisan('config-store:list')
+            ->expectsOutputToContain('No config values found.')
+            ->assertSuccessful();
     }
 }

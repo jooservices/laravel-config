@@ -3,14 +3,14 @@
 ## Requirements
 
 - PHP 8.5+
-- Laravel 11, 12, or 13
-- `mongodb/laravel-mongodb`
+- Laravel 12 or 13
+- `mongodb/laravel-mongodb` `^5.7`
 - MongoDB PHP extension
 
 ## Install the package
 
 ```bash
-composer require jooservices/laravel-config
+composer require jooservices/laravel-config:^4.0
 ```
 
 ## Publish the package config
@@ -30,3 +30,5 @@ php artisan config-store:ensure-index
 ```
 
 This command ensures the required unique compound index on `group` + `key`.
+
+See [UPGRADE-4.0.md](../../UPGRADE-4.0.md) for breaking changes from the 1.x line.

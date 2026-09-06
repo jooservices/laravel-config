@@ -1,0 +1,61 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+    - vendor/phpstan/phpstan-phpunit/extension.neon
+    - vendor/phpstan/phpstan-phpunit/rules.neon
+
+parameters:
+    paths:
+        - src
+        - tests
+    excludePaths:
+        - tests/Benchmark/*
+    level: max
+    treatPhpDocTypesAsCertain: false
+    checkMissingCallableSignature: true
+    reportUnmatchedIgnoredErrors: false
+    ignoreErrors:
+        - '~Parameter (#\d+|\$\w+) .+ expects .+, Mockery\\(MockInterface|LegacyMockInterface) given\.~'
+        -
+            message: '~Call to an undefined method Mockery\\.*~'
+            path: tests/*
+        -
+            identifier: method.nonObject
+            path: tests/*
+        -
+            identifier: offsetAccess.nonOffsetAccessible
+            path: tests/*
+        -
+            identifier: offsetAccess.notFound
+            path: tests/*
+        -
+            message: '~Called .env. outside of the config directory~'
+            path: tests/*
+        -
+            message: '~Illuminate\\Foundation\\Application\|null~'
+            path: tests/*
+        -
+            identifier: staticMethod.dynamicCall
+            message: '~Illuminate\\Database\\Eloquent\\Builder~'
+        -
+            identifier: staticMethod.dynamicCall
+            path: tests/*
+        -
+            identifier: staticMethod.alreadyNarrowedType
+            path: tests/*
+        -
+            identifier: varTag.type
+            path: tests/*
+        -
+            identifier: argument.type
+            path: tests/*
+        -
+            identifier: foreach.nonIterable
+            path: tests/*
+        # MongoDB collection callback typing under Larastan
+        -
+            message: '~Illuminate\\Database\\Eloquent\\Builder.*::raw\(\)~'
+            path: src/Services/ConfigService.php
+        -
+            message: '~Cannot call method createIndex\(\) on mixed~'
+            path: src/Services/ConfigService.php

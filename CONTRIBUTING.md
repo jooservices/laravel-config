@@ -1,35 +1,59 @@
 # Contributing
 
-## Branching
+Contributions to `jooservices/laravel-config` should keep the package aligned
+with Laravel 12/13, PHP 8.5, MongoDB persistence, and the repository quality gates.
 
-- normal work starts from the latest `develop`
-- do not commit directly to `master` or `develop`
-- feature and fix branches target `develop`
-- release branches target `master` and `master` merges back into `develop`
+For more detail, see [docs/04-development/04-contributing.md](docs/04-development/04-contributing.md)
+and [AGENTS.md](AGENTS.md).
 
-## Local workflow
+## Requirements
+
+- PHP 8.5
+- Composer
+- MongoDB for persistence tests
+- the MongoDB PHP extension
+
+## Setup
 
 ```bash
-git checkout develop
-git pull origin develop
-git checkout -b feature/<short-name>
+composer install
 ```
 
-## Validation
+## Quality gates
+
+Use repository Composer scripts:
 
 ```bash
 composer lint
 composer lint:all
 composer test
+composer test:coverage
 composer check
+composer ci
 ```
 
-MongoDB is required for the integration test suite.
+Before commit or pull request, run the relevant checks and make sure they pass
+with zero warnings or notices.
 
-## Package-specific rules
+## Coding rules
 
-- use the `JOOservices\LaravelConfig\` namespace
-- keep package logic in services and thin commands or facades
-- do not mock internal package persistence behavior in tests
-- Pint is the formatting authority when tools disagree
-- stop and ask when requirements are unclear or risky
+- inspect the real code before changing it
+- keep scope limited to MongoDB-backed typed application config storage
+- use SOLID, DRY, KISS, and YAGNI
+- keep changes backward compatible where practical
+- use real MongoDB integration flow for persisted config data
+- treat Pint as the source of truth when style tools disagree
+- avoid unrelated refactors or cleanup outside the requested scope
+
+## Branch workflow
+
+- `master` is production/release state
+- `develop` is development state
+- feature branches start from `develop`
+- hotfix branches start from `master`
+- clean local work before starting new tasks
+
+## Security
+
+Do not report vulnerabilities in public issues. Follow [SECURITY.md](SECURITY.md)
+for private reporting.

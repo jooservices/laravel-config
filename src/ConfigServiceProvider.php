@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace JOOservices\LaravelConfig;
 
-use Illuminate\Contracts\Cache\Factory as CacheFactory;
+use Illuminate\Contracts\Encryption\Encrypter;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use JOOservices\LaravelConfig\Console\Commands\DoctorConfigCommand;
@@ -24,12 +24,11 @@ class ConfigServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__.'/../config/config-store.php',
-            'config-store'
+            __DIR__ . '/../config/config-store.php',
+            'config-store',
         );
 
         $this->app->singleton(ConfigService::class, function (Application $app): ConfigService {
-            /** @var CacheFactory $cacheFactory */
             $cacheFactory = $app->make('cache');
             $configuredStore = config('config-store.cache_store');
             $defaultStore = config('cache.default', 'array');
@@ -37,11 +36,17 @@ class ConfigServiceProvider extends ServiceProvider
                 ? $configuredStore
                 : (is_string($defaultStore) ? $defaultStore : 'array');
 
-            return new ConfigService($cacheFactory->store($storeName));
+            /** @var \Illuminate\Contracts\Cache\Repository $cacheRepository */
+            $cacheRepository = $cacheFactory->store($storeName);
+
+            return new ConfigService(
+                $cacheRepository,
+                $app->make(Encrypter::class),
+            );
         });
 
         $this->app->alias(ConfigService::class, 'config-store');
-        $this->app->alias(ConfigService::class, ConfigStore::class);
+        $this->app->bind(ConfigStore::class, ConfigService::class);
     }
 
     public function boot(): void
@@ -60,7 +65,7 @@ class ConfigServiceProvider extends ServiceProvider
             ]);
 
             $this->publishes([
-                __DIR__.'/../config/config-store.php' => config_path('config-store.php'),
+                __DIR__ . '/../config/config-store.php' => config_path('config-store.php'),
             ], 'config-store-config');
         }
     }

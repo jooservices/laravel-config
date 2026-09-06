@@ -5,21 +5,42 @@ declare(strict_types=1);
 namespace JOOservices\LaravelConfig\Testing;
 
 use Illuminate\Support\Collection;
+use InvalidArgumentException;
 use JOOservices\LaravelConfig\Contracts\ConfigStore;
+use JOOservices\LaravelConfig\Events\ConfigChanged;
+use JOOservices\LaravelConfig\Events\ConfigForgotten;
 use JOOservices\LaravelConfig\Support\ConfigPath;
 use JOOservices\LaravelConfig\Support\ConfigType;
+use JsonException;
 
 class FakeConfigStore implements ConfigStore
 {
     /** @var array<string, array<string, mixed>> */
     protected array $items = [];
 
+    /** @var array<string, string> */
+    protected array $types = [];
+
     /**
      * @param  array<string, array<string, mixed>>  $seed
      */
     public function __construct(array $seed = [])
     {
-        $this->items = $seed;
+        foreach ($seed as $group => $keys) {
+            if (! is_string($group) || ! is_array($keys)) {
+                continue;
+            }
+
+            foreach ($keys as $key => $value) {
+                if (! is_string($key)) {
+                    continue;
+                }
+
+                $configType = ConfigType::infer($value);
+                $this->items[$group][$key] = $this->normalizeValue($value, $configType);
+                $this->types[$group . '.' . $key] = $configType->value;
+            }
+        }
     }
 
     public function get(string $path, mixed $default = null): mixed
@@ -38,30 +59,26 @@ class FakeConfigStore implements ConfigStore
 
     public function getString(string $path, ?string $default = null): ?string
     {
-        $value = $this->get($path, $default);
-
-        return is_string($value) ? $value : $default;
+        return $this->typedGet($path, $default, static fn(mixed $value): ?string => is_string($value) ? $value : null);
     }
 
     public function getInt(string $path, ?int $default = null): ?int
     {
-        $value = $this->get($path, $default);
-
-        return is_int($value) ? $value : $default;
+        return $this->typedGet($path, $default, static fn(mixed $value): ?int => is_int($value) ? $value : null);
     }
 
     public function getFloat(string $path, ?float $default = null): ?float
     {
-        $value = $this->get($path, $default);
-
-        return is_float($value) ? $value : $default;
+        return $this->typedGet(
+            $path,
+            $default,
+            static fn(mixed $value): ?float => is_int($value) || is_float($value) ? (float) $value : null,
+        );
     }
 
     public function getBool(string $path, ?bool $default = null): ?bool
     {
-        $value = $this->get($path, $default);
-
-        return is_bool($value) ? $value : $default;
+        return $this->typedGet($path, $default, static fn(mixed $value): ?bool => is_bool($value) ? $value : null);
     }
 
     /**
@@ -70,21 +87,13 @@ class FakeConfigStore implements ConfigStore
      */
     public function getArray(string $path, ?array $default = null): ?array
     {
-        $value = $this->get($path, $default);
-
-        if (! is_array($value)) {
-            return $default;
-        }
-
-        $normalized = [];
-
-        foreach ($value as $key => $item) {
-            if (is_string($key)) {
-                $normalized[$key] = $item;
+        return $this->typedGet($path, $default, function (mixed $value): ?array {
+            if (! is_array($value)) {
+                return null;
             }
-        }
 
-        return $normalized;
+            return $this->normalizeArrayMap($value);
+        });
     }
 
     public function fresh(string $path, mixed $default = null): mixed
@@ -94,11 +103,60 @@ class FakeConfigStore implements ConfigStore
 
     public function set(string $path, mixed $value, ?string $type = null): void
     {
-        $configPath = $this->parsePath($path);
-        $configType = $type === null ? ConfigType::infer($value) : ConfigType::parse($type);
+        $this->setMany([
+            $path => [
+                'value' => $value,
+                'type' => $type,
+            ],
+        ]);
+    }
 
-        $this->items[$configPath->group] ??= [];
-        $this->items[$configPath->group][$configPath->key] = $this->normalizeValue($value, $configType);
+    public function setMany(array $entries): void
+    {
+        if ($entries === []) {
+            return;
+        }
+
+        $mutations = [];
+
+        foreach ($entries as $path => $entry) {
+            if (! is_string($path) || $path === '') {
+                throw new InvalidArgumentException('Config path keys must be non-empty strings.');
+            }
+
+            if (is_array($entry) && array_key_exists('value', $entry)) {
+                $value = $entry['value'];
+                $type = $entry['type'] ?? null;
+            } else {
+                $value = $entry;
+                $type = null;
+            }
+
+            $configPath = $this->parsePath($path);
+            $configType = is_string($type)
+                ? ConfigType::parse($type)
+                : ConfigType::infer($value);
+
+            $normalized = $this->normalizeValue($value, $configType);
+            $normalizedPath = $configPath->group . '.' . $configPath->key;
+            $this->items[$configPath->group] ??= [];
+            $this->items[$configPath->group][$configPath->key] = $normalized;
+            $this->types[$normalizedPath] = $configType->value;
+
+            $mutations[] = [
+                'path' => $normalizedPath,
+                'normalized' => $normalized,
+                'type' => $configType,
+            ];
+        }
+
+        foreach ($mutations as $mutation) {
+            $this->dispatchChanged(
+                $mutation['path'],
+                $mutation['normalized'],
+                $mutation['type'],
+            );
+        }
     }
 
     public function remember(string $path, mixed $default, ?string $type = null): mixed
@@ -122,22 +180,90 @@ class FakeConfigStore implements ConfigStore
 
     public function forget(string $path): bool
     {
-        $configPath = $this->parsePath($path);
+        return $this->forgetMany([$path]) === 1;
+    }
 
-        if (
-            ! array_key_exists($configPath->group, $this->items)
-            || ! array_key_exists($configPath->key, $this->items[$configPath->group])
-        ) {
-            return false;
+    public function forgetMany(array $paths): int
+    {
+        if ($paths === []) {
+            return 0;
         }
 
-        unset($this->items[$configPath->group][$configPath->key]);
+        $forgotten = [];
 
-        if ($this->items[$configPath->group] === []) {
-            unset($this->items[$configPath->group]);
+        foreach ($paths as $path) {
+            if (! is_string($path) || $path === '') {
+                throw new InvalidArgumentException('Config path keys must be non-empty strings.');
+            }
+
+            $configPath = $this->parsePath($path);
+            $normalized = $configPath->group . '.' . $configPath->key;
+
+            if (isset($forgotten[$normalized])) {
+                continue;
+            }
+
+            if (
+                ! array_key_exists($configPath->group, $this->items)
+                || ! array_key_exists($configPath->key, $this->items[$configPath->group])
+            ) {
+                continue;
+            }
+
+            unset($this->items[$configPath->group][$configPath->key], $this->types[$normalized]);
+
+            if ($this->items[$configPath->group] === []) {
+                unset($this->items[$configPath->group]);
+            }
+
+            $forgotten[$normalized] = true;
         }
 
-        return true;
+        foreach (array_keys($forgotten) as $normalizedPath) {
+            event(new ConfigForgotten($normalizedPath));
+        }
+
+        return count($forgotten);
+    }
+
+    public function clear(): int
+    {
+        $paths = array_values(
+            $this->listPaths()
+                ->map(static fn(array $row): string => $row['group'] . '.' . $row['key'])
+                ->all(),
+        );
+
+        return $this->forgetMany($paths);
+    }
+
+    /**
+     * @return Collection<int, array{group: string, key: string}>
+     */
+    public function listPaths(): Collection
+    {
+        return collect($this->items)
+            ->flatMap(function (array $keys, string $group): array {
+                $records = [];
+
+                foreach (array_keys($keys) as $key) {
+                    if (! is_string($key)) {
+                        continue;
+                    }
+
+                    $records[] = [
+                        'group' => $group,
+                        'key' => $key,
+                    ];
+                }
+
+                return $records;
+            })
+            ->sortBy([
+                ['group', 'asc'],
+                ['key', 'asc'],
+            ])
+            ->values();
     }
 
     /**
@@ -154,11 +280,12 @@ class FakeConfigStore implements ConfigStore
                         continue;
                     }
 
+                    $path = $group . '.' . $key;
                     $records[] = [
                         'group' => $group,
                         'key' => $key,
                         'value' => $value,
-                        'type' => $this->inferType($value),
+                        'type' => $this->types[$path] ?? $this->inferType($value),
                     ];
                 }
 
@@ -199,25 +326,104 @@ class FakeConfigStore implements ConfigStore
     protected function normalizeValue(mixed $value, ConfigType $type): mixed
     {
         return match ($type) {
-            ConfigType::String => is_scalar($value) || $value === null ? (string) $value : '',
+            ConfigType::String, ConfigType::Encrypted => is_scalar($value) || $value === null ? (string) $value : '',
             ConfigType::Int => is_numeric($value) ? (int) $value : 0,
             ConfigType::Float => is_numeric($value) ? (float) $value : 0.0,
             ConfigType::Bool => filter_var($value, FILTER_VALIDATE_BOOLEAN),
-            ConfigType::Array, ConfigType::Json => is_array($value) ? $value : [],
+            ConfigType::Array, ConfigType::Json => $this->normalizeArrayValue($value),
             ConfigType::Null => null,
         };
     }
 
+    /**
+     * @return array<int|string, mixed>
+     */
+    protected function normalizeArrayValue(mixed $value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            return $this->decodeJsonArray($value);
+        }
+
+        return (array) $value;
+    }
+
+    /**
+     * @param  array<mixed, mixed>  $value
+     * @return array<string, mixed>
+     */
+    protected function normalizeArrayMap(array $value): array
+    {
+        $result = [];
+
+        foreach ($value as $key => $item) {
+            if (is_string($key)) {
+                $result[$key] = $item;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function decodeJsonArray(string $value): array
+    {
+        try {
+            $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException('Invalid JSON value: ' . $exception->getMessage(), 0, $exception);
+        }
+
+        if (! is_array($decoded)) {
+            throw new InvalidArgumentException('JSON value must decode to an array.');
+        }
+
+        return $this->normalizeArrayMap($decoded);
+    }
+
+    protected function dispatchChanged(string $path, mixed $normalizedValue, ConfigType $type): void
+    {
+        if ($type->isSensitive()) {
+            event(new ConfigChanged($path, null, $type->value));
+
+            return;
+        }
+
+        event(new ConfigChanged($path, $normalizedValue, $type->value));
+    }
+
+    /**
+     * @template T
+     *
+     * @param  callable(mixed): (?T)  $assert
+     * @return T|null
+     */
+    protected function typedGet(string $path, mixed $default, callable $assert): mixed
+    {
+        if (! $this->has($path)) {
+            return $default;
+        }
+
+        $value = $this->get($path);
+        $typed = $assert($value);
+
+        if ($typed === null && $value !== null) {
+            throw new InvalidArgumentException(sprintf(
+                'Config value at [%s] is not the expected type.',
+                $path,
+            ));
+        }
+
+        return $typed;
+    }
+
     protected function inferType(mixed $value): string
     {
-        return match (true) {
-            is_string($value) => ConfigType::String->value,
-            is_int($value) => ConfigType::Int->value,
-            is_float($value) => ConfigType::Float->value,
-            is_bool($value) => ConfigType::Bool->value,
-            is_array($value) => ConfigType::Array->value,
-            $value === null => ConfigType::Null->value,
-            default => ConfigType::String->value,
-        };
+        return ConfigType::infer($value)->value;
     }
 }
