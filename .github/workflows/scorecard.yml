@@ -3,7 +3,7 @@ name: OpenSSF Scorecard
 on:
   push:
     # ossf/scorecard-action only supports the repository default branch.
-    branches: [master]
+    branches: [develop]
   schedule:
     - cron: '0 0 * * 1'
   workflow_dispatch:
