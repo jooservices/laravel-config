@@ -14,11 +14,17 @@ on `1.4.0` until then.
 
 ## Steps
 
+After `v4.0.0` is published to Packagist:
+
 ```bash
 composer require jooservices/laravel-config:^4.0
-php artisan vendor:publish --tag=config-store-config --force   # if you customize config
+php artisan vendor:publish --tag=config-store-config
 php artisan config-store:ensure-index
 ```
+
+Until release, install from source (`path` / VCS) on the adopt branch. Use
+`--force` on publish only when intentionally replacing a customized
+`config/config-store.php` after backup/merge.
 
 ## Breaking changes
 

@@ -596,10 +596,7 @@ class ConfigServiceTest extends TestCase
         $cacheKey = config('config-store.cache_key');
         $this->assertIsString($cacheKey);
 
-        Cache::store('array')->put($cacheKey, [
-            123 => 'ignored',
-            'valid' => ['key' => 'value', 456 => 'ignored-key'],
-        ], 3600);
+        Cache::store('array')->put($cacheKey, 'not-a-valid-encrypted-payload', 3600);
 
         $this->resetConfigStoreService();
 
@@ -759,5 +756,44 @@ class ConfigServiceTest extends TestCase
 
         Config::set('system.ttl', 'ok');
         $this->assertSame('ok', Config::get('system.ttl'));
+    }
+
+    public function test_set_many_validates_all_entries_before_writing(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        try {
+            Config::setMany([
+                'system.ok' => 'kept-out',
+                'system.' => 'invalid',
+            ]);
+        } finally {
+            $this->assertFalse(Config::has('system.ok'));
+        }
+    }
+
+    public function test_list_paths_returns_group_key_without_values(): void
+    {
+        Config::set('system.site_name', 'XCrawler');
+        Config::set('payment.retry', 3);
+
+        $paths = Config::listPaths()->map(
+            static fn(array $row): string => $row['group'] . '.' . $row['key'],
+        )->all();
+
+        $this->assertSame(['payment.retry', 'system.site_name'], $paths);
+    }
+
+    public function test_shared_cache_payload_is_encrypted(): void
+    {
+        Config::set('secrets.api_token', 'super-secret', 'encrypted');
+
+        $cacheKey = config('config-store.cache_key');
+        $this->assertIsString($cacheKey);
+        $cached = Cache::store('array')->get($cacheKey);
+
+        $this->assertIsString($cached);
+        $this->assertStringNotContainsString('super-secret', $cached);
+        $this->assertSame('super-secret', Config::get('secrets.api_token'));
     }
 }

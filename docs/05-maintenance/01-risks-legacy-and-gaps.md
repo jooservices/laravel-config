@@ -9,16 +9,15 @@ tagged.
 - **Process-local memory:** the in-memory config map is per PHP process. Long-lived
   workers can serve stale values until `refresh()`, a newer cache version stamp is
   observed, or the process recycles.
-- **Cache trust:** the full-map cache and version stamp are a trusted boundary.
-  Use a dedicated cache store/prefix in production; do not share with untrusted
-  writers.
+- **Cache trust:** the shared cache stores an **encrypted** full-map payload plus a
+  version stamp. Use a dedicated cache store/prefix in production; do not share with
+  untrusted writers. Process memory still holds decrypted values after load.
 - **Full-map rewrites:** mutations rewrite the cached map. Keep collections
   config-sized (hundreds of keys, not thousands). Prefer `setMany` / bulk import
   so the stamp bumps once per batch.
-- **Secrets:** `ConfigType::Encrypted` (planned for v4) encrypts at rest via
-  Laravel Crypt. Key rotation, MongoDB ACLs, backups, and who can call `get` remain
-  application responsibilities. `ConfigChanged` must not leak plaintext for
-  encrypted values.
+- **Secrets:** `ConfigType::Encrypted` encrypts at rest via Laravel Crypt. Key
+  rotation, MongoDB ACLs, backups, and who can call `get` remain application
+  responsibilities. `ConfigChanged` does not embed plaintext for encrypted values.
 - **Index assumption:** a unique compound index on `group` + `key` is required;
   run `config-store:ensure-index` in deploy.
 

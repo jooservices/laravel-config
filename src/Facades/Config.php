@@ -26,6 +26,10 @@ use JOOservices\LaravelConfig\Testing\FakeConfigStore;
  * @method static bool forget(string $path)
  * @method static \Illuminate\Support\Collection<int, array{
  *     group: string,
+ *     key: string
+ * }> listPaths()
+ * @method static \Illuminate\Support\Collection<int, array{
+ *     group: string,
  *     key: string,
  *     value: mixed,
  *     type: string

@@ -135,7 +135,7 @@ class FakeConfigStore implements ConfigStore
             }
 
             $configPath = $this->parsePath($path);
-            $configType = is_string($type) && $type !== ''
+            $configType = is_string($type)
                 ? ConfigType::parse($type)
                 : ConfigType::infer($value);
 
@@ -184,6 +184,35 @@ class FakeConfigStore implements ConfigStore
         }
 
         return true;
+    }
+
+    /**
+     * @return Collection<int, array{group: string, key: string}>
+     */
+    public function listPaths(): Collection
+    {
+        return collect($this->items)
+            ->flatMap(function (array $keys, string $group): array {
+                $records = [];
+
+                foreach (array_keys($keys) as $key) {
+                    if (! is_string($key)) {
+                        continue;
+                    }
+
+                    $records[] = [
+                        'group' => $group,
+                        'key' => $key,
+                    ];
+                }
+
+                return $records;
+            })
+            ->sortBy([
+                ['group', 'asc'],
+                ['key', 'asc'],
+            ])
+            ->values();
     }
 
     /**

@@ -131,24 +131,27 @@ class ConfigService implements ConfigStore
                 $configType,
             );
 
-            ConfigModel::updateOrCreate(
-                [
-                    'group' => $configPath->group,
-                    'key' => $configPath->key,
-                ],
-                [
-                    'value' => $storedValue,
-                    'type' => $configType->value,
-                ],
-            );
-
             $mutations[] = [
                 'path' => $path,
                 'group' => $configPath->group,
                 'key' => $configPath->key,
+                'stored' => $storedValue,
                 'normalized' => $normalizedValue,
                 'type' => $configType,
             ];
+        }
+
+        foreach ($mutations as $mutation) {
+            ConfigModel::updateOrCreate(
+                [
+                    'group' => $mutation['group'],
+                    'key' => $mutation['key'],
+                ],
+                [
+                    'value' => $mutation['stored'],
+                    'type' => $mutation['type']->value,
+                ],
+            );
         }
 
         $this->bumpCacheVersion();
@@ -234,6 +237,29 @@ class ConfigService implements ConfigStore
     }
 
     /**
+     * @return Collection<int, array{group: string, key: string}>
+     */
+    public function listPaths(): Collection
+    {
+        /** @var list<array{group: string, key: string}> $rows */
+        $rows = [];
+
+        foreach (
+            ConfigModel::query()
+                ->orderBy('group')
+                ->orderBy('key')
+                ->get(['group', 'key']) as $record
+        ) {
+            $rows[] = [
+                'group' => $this->stringifyScalar($record->group ?? null),
+                'key' => $this->stringifyScalar($record->key ?? null),
+            ];
+        }
+
+        return Collection::make($rows);
+    }
+
+    /**
      * @return Collection<int, array{group: string, key: string, value: mixed, type: string}>
      */
     public function listOrdered(): Collection
@@ -297,9 +323,9 @@ class ConfigService implements ConfigStore
         }
 
         if ($this->isCacheEnabled()) {
-            $cached = $this->cacheStore->get($this->getCacheKey());
-            if (is_array($cached)) {
-                $this->items = $this->normalizeCachedItems($cached);
+            $cached = $this->readCachePayload();
+            if ($cached !== null) {
+                $this->items = $cached;
                 $this->cacheVersion = $this->getRemoteCacheVersion();
                 $this->loaded = true;
 
@@ -350,9 +376,41 @@ class ConfigService implements ConfigStore
 
         $this->cacheStore->put(
             $this->getCacheKey(),
-            $this->items,
+            $this->encrypter->encrypt($this->items),
             $this->getCacheTtl(),
         );
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>|null
+     */
+    protected function readCachePayload(): ?array
+    {
+        $cached = $this->cacheStore->get($this->getCacheKey());
+
+        if (! is_string($cached) || $cached === '') {
+            if ($cached !== null) {
+                $this->invalidateCache();
+            }
+
+            return null;
+        }
+
+        try {
+            $decoded = $this->encrypter->decrypt($cached);
+        } catch (Throwable) {
+            $this->invalidateCache();
+
+            return null;
+        }
+
+        if (! is_array($decoded)) {
+            $this->invalidateCache();
+
+            return null;
+        }
+
+        return $this->normalizeCachedItems($decoded);
     }
 
     protected function invalidateCache(): void

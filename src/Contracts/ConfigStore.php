@@ -43,6 +43,11 @@ interface ConfigStore
     public function forget(string $path): bool;
 
     /**
+     * @return Collection<int, array{group: string, key: string}>
+     */
+    public function listPaths(): Collection;
+
+    /**
      * @return Collection<int, array{group: string, key: string, value: mixed, type: string}>
      */
     public function listOrdered(): Collection;

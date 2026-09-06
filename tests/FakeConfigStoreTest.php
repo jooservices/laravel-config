@@ -171,4 +171,17 @@ class FakeConfigStoreTest extends TestCase
         $this->assertSame('plain', $fake->get('secrets.token'));
         $this->assertSame('encrypted', $fake->listOrdered()->first()['type'] ?? null);
     }
+
+    public function test_fake_config_store_empty_type_string_throws(): void
+    {
+        $fake = new FakeConfigStore();
+
+        $this->expectException(InvalidArgumentException::class);
+        $fake->setMany([
+            'system.bad' => [
+                'value' => 'x',
+                'type' => '',
+            ],
+        ]);
+    }
 }

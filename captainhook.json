@@ -51,7 +51,7 @@
         "enabled": true,
         "actions": [
             {
-                "action": "command -v gitleaks >/dev/null 2>&1 && gitleaks detect --verbose --redact --config=.gitleaks.toml || echo 'Note: Gitleaks scan skipped or failed. Install gitleaks for full local secret scanning: brew install gitleaks'",
+                "action": "if command -v gitleaks >/dev/null 2>&1; then gitleaks detect --verbose --redact --config=.gitleaks.toml; else echo 'Note: Gitleaks scan skipped. Install gitleaks for full local secret scanning: brew install gitleaks'; fi",
                 "conditions": []
             },
             {

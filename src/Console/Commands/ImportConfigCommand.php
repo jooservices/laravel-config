@@ -96,7 +96,7 @@ class ImportConfigCommand extends ConfigCommand
 
     private function replaceExistingConfig(ConfigStore $configService): void
     {
-        foreach ($configService->listOrdered() as $row) {
+        foreach ($configService->listPaths() as $row) {
             $configService->forget($row['group'] . '.' . $row['key']);
         }
     }
@@ -115,7 +115,7 @@ class ImportConfigCommand extends ConfigCommand
             }
 
             foreach ($keys as $key => $value) {
-                if (! is_string($key)) {
+                if (! is_string($key) || $key === '') {
                     continue;
                 }
 
