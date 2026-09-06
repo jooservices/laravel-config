@@ -60,7 +60,11 @@ class ConfigService implements ConfigStore
 
     public function getFloat(string $path, ?float $default = null): ?float
     {
-        return $this->typedGet($path, $default, static fn(mixed $value): ?float => is_float($value) ? $value : null);
+        return $this->typedGet(
+            $path,
+            $default,
+            static fn(mixed $value): ?float => is_int($value) || is_float($value) ? (float) $value : null,
+        );
     }
 
     public function getBool(string $path, ?bool $default = null): ?bool
@@ -197,43 +201,100 @@ class ConfigService implements ConfigStore
 
     public function forget(string $path): bool
     {
-        $configPath = $this->parsePath($path);
+        return $this->forgetMany([$path]) === 1;
+    }
 
-        $deleted = ConfigModel::query()
-            ->where('group', $configPath->group)
-            ->where('key', $configPath->key)
-            ->delete() > 0;
+    public function forgetMany(array $paths): int
+    {
+        if ($paths === []) {
+            return 0;
+        }
 
-        if (! $deleted) {
-            return false;
+        $forgotten = $this->deleteConfiguredPaths($paths);
+
+        if ($forgotten === []) {
+            return 0;
         }
 
         $this->bumpCacheVersion();
+        $this->syncMemoryAfterForget($forgotten);
 
+        foreach (array_keys($forgotten) as $normalizedPath) {
+            event(new ConfigForgotten($normalizedPath));
+        }
+
+        return count($forgotten);
+    }
+
+    /**
+     * @param  array<int, string>  $paths
+     * @return array<string, ConfigPath>
+     */
+    private function deleteConfiguredPaths(array $paths): array
+    {
+        $forgotten = [];
+
+        foreach ($paths as $path) {
+            if (! is_string($path) || $path === '') {
+                throw new InvalidArgumentException('Config path keys must be non-empty strings.');
+            }
+
+            $configPath = $this->parsePath($path);
+            $normalized = $configPath->group . '.' . $configPath->key;
+
+            if (isset($forgotten[$normalized])) {
+                continue;
+            }
+
+            $deleted = ConfigModel::query()
+                ->where('group', $configPath->group)
+                ->where('key', $configPath->key)
+                ->delete() > 0;
+
+            if ($deleted) {
+                $forgotten[$normalized] = $configPath;
+            }
+        }
+
+        return $forgotten;
+    }
+
+    /**
+     * @param  array<string, ConfigPath>  $forgotten
+     */
+    private function syncMemoryAfterForget(array $forgotten): void
+    {
         if (! $this->loaded) {
             $this->invalidateCache();
 
-            event(new ConfigForgotten($path));
-
-            return true;
+            return;
         }
 
-        if (
-            array_key_exists($configPath->group, $this->items)
-            && array_key_exists($configPath->key, $this->items[$configPath->group])
-        ) {
-            unset($this->items[$configPath->group][$configPath->key]);
+        foreach ($forgotten as $configPath) {
+            if (
+                array_key_exists($configPath->group, $this->items)
+                && array_key_exists($configPath->key, $this->items[$configPath->group])
+            ) {
+                unset($this->items[$configPath->group][$configPath->key]);
 
-            if ($this->items[$configPath->group] === []) {
-                unset($this->items[$configPath->group]);
+                if ($this->items[$configPath->group] === []) {
+                    unset($this->items[$configPath->group]);
+                }
             }
         }
 
         $this->putCache();
+    }
 
-        event(new ConfigForgotten($path));
+    public function clear(): int
+    {
+        $paths = array_values(
+            $this->listPaths()
+                ->map(static fn(array $row): string => $row['group'] . '.' . $row['key'])
+                ->all(),
+        );
 
-        return true;
+        return $this->forgetMany($paths);
     }
 
     /**

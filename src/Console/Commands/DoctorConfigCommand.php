@@ -24,6 +24,7 @@ class DoctorConfigCommand extends Command
             'Unique group/key index' => $this->checkIndex($configService),
             'Cache round-trip' => $this->checkCacheRoundTrip($cacheFactory),
             'Unknown config types' => $this->checkUnknownTypes(),
+            'Encrypted value decryptability' => $this->checkEncryptedDecryptability($configService),
         ];
 
         $failed = false;
@@ -103,6 +104,26 @@ class DoctorConfigCommand extends Command
                 if ($type !== '' && ! in_array($type, $supported, true)) {
                     return false;
                 }
+            }
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    protected function checkEncryptedDecryptability(ConfigStore $configService): bool
+    {
+        try {
+            foreach (ConfigModel::query()->where('type', ConfigType::Encrypted->value)->get() as $record) {
+                $group = (string) ($record->group ?? '');
+                $key = (string) ($record->key ?? '');
+
+                if ($group === '' || $key === '') {
+                    return false;
+                }
+
+                $configService->fresh($group . '.' . $key);
             }
 
             return true;

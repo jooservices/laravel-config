@@ -43,6 +43,18 @@ interface ConfigStore
     public function forget(string $path): bool;
 
     /**
+     * Remove many paths in one write cycle (single cache version bump).
+     *
+     * @param  array<int, string>  $paths
+     */
+    public function forgetMany(array $paths): int;
+
+    /**
+     * Remove every stored config path in one write cycle (single cache version bump).
+     */
+    public function clear(): int;
+
+    /**
      * @return Collection<int, array{group: string, key: string}>
      */
     public function listPaths(): Collection;

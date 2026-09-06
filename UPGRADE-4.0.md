@@ -53,7 +53,14 @@ Returns **normalized** values (same rules as `get`), not raw Mongo documents.
 ### Bulk writes
 
 - `setMany()` / bulk import bump the cache **once** per batch.
+- `forgetMany()` / `clear()` bump once (import `--force` replace uses `clear()`).
 - Import CLI: `--dry-run` preview; replace without merge requires `--force`.
+
+### Export / CLI secrets
+
+- Export writes typed `__type` / `__value` envelopes.
+- Encrypted values are omitted from export unless `--reveal-secrets`.
+- `config-store:get` / `list` redact encrypted values unless `--reveal-secrets`.
 
 ### `ConfigChanged` and secrets
 

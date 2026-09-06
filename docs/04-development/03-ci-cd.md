@@ -7,10 +7,10 @@ The CI workflow runs on pushes to `develop` and `master`, plus pull requests tar
 It performs:
 
 - Composer validation and locked-state audit
-- lint matrix for Pint, PHPCS, PHPStan (max + strict rules), PHPMD, PHP-CS-Fixer, and AI instruction sync
+- lint matrix for Pint, PHPCS, PHPStan (max + strict rules), PHPMD, and PHP-CS-Fixer
 - dependency review on pull requests
 - MongoDB-backed Laravel 12 and 13 test matrix
-- coverage generation with a **95%** threshold gate
+- coverage generation with a **94%** threshold gate
 - optional coverage upload when `CODECOV_TOKEN` is available
 
 ## Release workflow

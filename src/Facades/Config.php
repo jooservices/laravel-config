@@ -24,6 +24,8 @@ use JOOservices\LaravelConfig\Testing\FakeConfigStore;
  * @method static mixed remember(string $path, mixed $default, ?string $type = null)
  * @method static bool has(string $path)
  * @method static bool forget(string $path)
+ * @method static int forgetMany(array<int, string> $paths)
+ * @method static int clear()
  * @method static \Illuminate\Support\Collection<int, array{
  *     group: string,
  *     key: string

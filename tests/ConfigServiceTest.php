@@ -500,8 +500,46 @@ class ConfigServiceTest extends TestCase
         $this->assertSame('XCrawler', Config::getString('typed.name'));
         $this->assertSame(3, Config::getInt('typed.count'));
         $this->assertSame(1.5, Config::getFloat('typed.rate'));
+        $this->assertSame(3.0, Config::getFloat('typed.count'));
         $this->assertTrue(Config::getBool('typed.enabled'));
         $this->assertSame(['a' => 1], Config::getArray('typed.items'));
+    }
+
+    public function test_forget_many_and_clear_bump_cache_once(): void
+    {
+        Config::set('system.a', '1');
+        Config::set('system.b', '2');
+        Config::set('system.c', '3');
+
+        $versionKey = 'jooservices_config_all_test:version';
+        $before = $this->cacheVersion($versionKey);
+
+        $this->assertSame(2, Config::forgetMany(['system.a', 'system.b', 'system.missing']));
+        $this->assertSame($before + 1, $this->cacheVersion($versionKey));
+
+        $beforeClear = $this->cacheVersion($versionKey);
+        $this->assertSame(1, Config::clear());
+        $this->assertSame($beforeClear + 1, $this->cacheVersion($versionKey));
+        $this->assertSame([], Config::all());
+    }
+
+    private function cacheVersion(string $versionKey): int
+    {
+        $value = Cache::store('array')->get($versionKey, 0);
+
+        return is_numeric($value) ? (int) $value : 0;
+    }
+
+    public function test_forget_many_returns_zero_for_empty_input(): void
+    {
+        $this->assertSame(0, Config::forgetMany([]));
+        $this->assertSame(0, Config::clear());
+    }
+
+    public function test_forget_many_rejects_empty_path(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        Config::forgetMany(['']);
     }
 
     public function test_get_int_throws_when_type_mismatch(): void

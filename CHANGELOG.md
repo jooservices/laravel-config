@@ -22,7 +22,12 @@ JOOservices adopt + v4.0.0 preparation. **Not tagged.** Packagist remains at
 ### Added / changed (planned)
 
 - `setMany()` / bulk import with a single cache bump
+- `forgetMany()` / `clear()` with a single cache bump (import `--force` replace)
+- Typed JSON export (`__type` / `__value`); CLI `--reveal-secrets` for get/list/export
 - Import CLI `--dry-run`; `--force` required to replace without merge
+- Doctor check for encrypted-value decryptability
+- `getFloat()` accepts stored integers
+- Fake store aligns typed getters + events with the real store
 - Pint `per`, Larastan, and JOOservices CI / docs / governance parity with
   `dto` / `laravel-events`
 
