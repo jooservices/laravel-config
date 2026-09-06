@@ -28,11 +28,10 @@ DTO features are not copied into this package.
 - This package uses Orchestra Testbench and a MongoDB service in CI; DTO does not.
 - Docs describe typed MongoDB config storage, cache maps, and Artisan operators —
   not DTO hydration or schema generation.
-- Next major is planned as **v4.0.0** (skip from 1.x) to match other JOOservices
+- Next major shipped as **v4.0.0** (skip from 1.x) to match other JOOservices
   Laravel package rebuilds.
 
 ## Remaining release work
 
-- Tag / Packagist publish of **v4.0.0** only after explicit version confirmation.
 - Codecov / Sonar badges only after integrations are confirmed; keep optional
   secret-dependent steps non-blocking when secrets are absent.

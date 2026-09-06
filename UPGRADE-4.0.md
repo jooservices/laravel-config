@@ -1,8 +1,7 @@
 # Upgrade to v4.0.0
 
 `v4.0.0` is a **breaking** major from the `1.x` line (JOOservices adopt + quality
-floor). Do not tag or publish until the version is confirmed. Packagist remains
-on `1.4.0` until then.
+floor).
 
 ## Requirements
 
@@ -14,16 +13,13 @@ on `1.4.0` until then.
 
 ## Steps
 
-After `v4.0.0` is published to Packagist:
-
 ```bash
 composer require jooservices/laravel-config:^4.0
 php artisan vendor:publish --tag=config-store-config
 php artisan config-store:ensure-index
 ```
 
-Until release, install from source (`path` / VCS) on the adopt branch. Use
-`--force` on publish only when intentionally replacing a customized
+Use `--force` on publish only when intentionally replacing a customized
 `config/config-store.php` after backup/merge.
 
 ## Breaking changes
@@ -79,5 +75,5 @@ Use repository `AGENTS.md` and `.github` guidance only.
 
 ## See also
 
-- [CHANGELOG](CHANGELOG.md) (`[Unreleased]` / `4.0.0`)
+- [CHANGELOG](CHANGELOG.md) (`4.0.0`)
 - [Risks, legacy, and gaps](docs/05-maintenance/01-risks-legacy-and-gaps.md)

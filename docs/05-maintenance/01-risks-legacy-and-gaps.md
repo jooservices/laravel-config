@@ -1,7 +1,6 @@
 # Risks, legacy, and gaps
 
-Remaining operational risks after the JOOservices adopt / v4.0.0 **implementation**
-on `develop` (Packagist tag still pending confirmation).
+Remaining operational risks after the JOOservices adopt / **v4.0.0** release.
 
 ## Operational risks
 
@@ -38,8 +37,8 @@ on `develop` (Packagist tag still pending confirmation).
 - Laravel 11 consumers must upgrade to Laravel 12 or 13.
 - Consumers that bound the package as Laravel’s `Config` facade must switch to
   `JOOservices\LaravelConfig\Facades\Config` or `ConfigStore`.
-- Packagist remains on **1.4.0** until v4.0.0 is confirmed and tagged — do not
-  assume Composer resolves 4.x yet.
+- Install with `composer require jooservices/laravel-config:^4.0` after the
+  Packagist publish completes for this tag.
 
 ## Tooling / CI gaps
 
