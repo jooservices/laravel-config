@@ -1,8 +1,7 @@
 # Risks, legacy, and gaps
 
-Remaining risks after JOOservices adopt / v4.0.0 **prep** (docs and planned
-contract). Code may still lag until the breaking implementation lands and is
-tagged.
+Remaining operational risks after the JOOservices adopt / v4.0.0 **implementation**
+on `develop` (Packagist tag still pending confirmation).
 
 ## Operational risks
 
@@ -13,11 +12,12 @@ tagged.
   version stamp. Use a dedicated cache store/prefix in production; do not share with
   untrusted writers. Process memory still holds decrypted values after load.
 - **Full-map rewrites:** mutations rewrite the cached map. Keep collections
-  config-sized (hundreds of keys, not thousands). Prefer `setMany` / bulk import
-  so the stamp bumps once per batch.
+  config-sized (hundreds of keys, not thousands). Prefer `setMany` / `forgetMany` /
+  bulk import so the stamp bumps once per batch.
 - **Secrets:** `ConfigType::Encrypted` encrypts at rest via Laravel Crypt. Key
-  rotation, MongoDB ACLs, backups, and who can call `get` remain application
-  responsibilities. `ConfigChanged` does not embed plaintext for encrypted values.
+  rotation, MongoDB ACLs, backups, and who can call `get` / `--reveal-secrets`
+  remain application responsibilities. `ConfigChanged` does not embed plaintext for
+  encrypted values. CLI export omits encrypted rows unless `--reveal-secrets`.
 - **Index assumption:** a unique compound index on `group` + `key` is required;
   run `config-store:ensure-index` in deploy.
 
@@ -45,5 +45,5 @@ tagged.
 
 - Codecov and Sonar stay optional until repository secrets/integrations are
   confirmed; avoid blocking badges that lie.
-- AI instruction sync tooling is planned for removal; keep `AGENTS.md` and
-  `.github` guidance as the source of truth.
+- AI instruction sync tooling has been removed; keep `AGENTS.md` and `.github`
+  guidance as the source of truth.

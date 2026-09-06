@@ -117,11 +117,59 @@ class FakeConfigStoreTest extends TestCase
         $fake->set('system.bad', 'value', 'boolean');
     }
 
-    public function test_fake_config_store_get_array_returns_default_for_non_array_values(): void
+    public function test_fake_config_store_typed_getters_throw_on_type_mismatch(): void
     {
         $fake = new FakeConfigStore(['typed' => ['text' => 'hello']]);
 
-        $this->assertSame(['fallback' => true], $fake->getArray('typed.text', ['fallback' => true]));
+        $this->expectException(InvalidArgumentException::class);
+        $fake->getArray('typed.text', ['fallback' => true]);
+    }
+
+    public function test_fake_config_store_get_float_accepts_integers(): void
+    {
+        $fake = new FakeConfigStore(['typed' => ['count' => 3]]);
+
+        $this->assertSame(3.0, $fake->getFloat('typed.count'));
+    }
+
+    public function test_fake_config_store_forget_many_and_clear(): void
+    {
+        $fake = new FakeConfigStore([
+            'system' => ['a' => 1, 'b' => 2],
+            'payment' => ['x' => 3],
+        ]);
+
+        $this->assertSame(2, $fake->forgetMany(['system.a', 'system.b', 'system.missing']));
+        $this->assertFalse($fake->has('system.a'));
+        $this->assertSame(1, $fake->clear());
+        $this->assertSame([], $fake->all());
+    }
+
+    public function test_fake_config_store_decodes_json_string_payloads(): void
+    {
+        $fake = new FakeConfigStore();
+        $fake->set('system.payload', '{"a":1}', 'json');
+
+        $this->assertSame(['a' => 1], $fake->getArray('system.payload'));
+    }
+
+    public function test_fake_config_store_dispatches_events(): void
+    {
+        \Illuminate\Support\Facades\Event::fake([
+            \JOOservices\LaravelConfig\Events\ConfigChanged::class,
+            \JOOservices\LaravelConfig\Events\ConfigForgotten::class,
+        ]);
+
+        $fake = new FakeConfigStore();
+        $fake->set('system.site_name', 'XCrawler');
+        $fake->forget('system.site_name');
+
+        \Illuminate\Support\Facades\Event::assertDispatched(
+            \JOOservices\LaravelConfig\Events\ConfigChanged::class,
+        );
+        \Illuminate\Support\Facades\Event::assertDispatched(
+            \JOOservices\LaravelConfig\Events\ConfigForgotten::class,
+        );
     }
 
     public function test_fake_config_store_forget_removes_empty_group_bucket(): void
@@ -184,6 +232,22 @@ class FakeConfigStoreTest extends TestCase
 
         $this->assertSame('plain', $fake->get('secrets.token'));
         $this->assertSame('encrypted', $fake->listOrdered()->first()['type'] ?? null);
+    }
+
+    public function test_fake_config_store_forget_many_rejects_empty_path(): void
+    {
+        $fake = new FakeConfigStore(['system' => ['a' => 1]]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $fake->forgetMany(['']);
+    }
+
+    public function test_fake_config_store_set_many_empty_is_noop(): void
+    {
+        $fake = new FakeConfigStore(['system' => ['a' => 1]]);
+        $fake->setMany([]);
+
+        $this->assertSame(1, $fake->get('system.a'));
     }
 
     public function test_fake_config_store_empty_type_string_throws(): void

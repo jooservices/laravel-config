@@ -96,9 +96,7 @@ class ImportConfigCommand extends ConfigCommand
 
     private function replaceExistingConfig(ConfigStore $configService): void
     {
-        foreach ($configService->listPaths() as $row) {
-            $configService->forget($row['group'] . '.' . $row['key']);
-        }
+        $configService->clear();
     }
 
     /**
