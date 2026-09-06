@@ -25,11 +25,11 @@ Describe the main risk and how to roll the change back if needed.
 ## Checklist
 
 - [ ] I inspected the actual code and documentation before changing files.
-- [ ] I kept the change focused on Laravel event persistence and audit logging.
+- [ ] I kept the change focused on the MongoDB-backed config store.
 - [ ] I updated docs, README, governance files, or AI instructions when needed.
 - [ ] I added or updated tests if behavior changed.
-- [ ] I used real MongoDB integration flow for persisted event/audit data.
-- [ ] I considered security impact and redaction/PII concerns.
+- [ ] I used real MongoDB integration flow for persisted config data.
+- [ ] I considered security impact (encryption, redaction, cache trust).
 - [ ] I ran the required quality gates and they passed with zero warnings or notices.
 - [ ] `composer lint`
 - [ ] `composer test`

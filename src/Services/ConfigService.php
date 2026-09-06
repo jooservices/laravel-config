@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace JOOservices\LaravelConfig\Services;
 
 use Illuminate\Contracts\Cache\Repository;
-use Illuminate\Encryption\Encrypter;
+use Illuminate\Contracts\Encryption\Encrypter;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
 use JOOservices\LaravelConfig\Contracts\ConfigStore;
@@ -485,7 +485,7 @@ class ConfigService implements ConfigStore
         if ($type === ConfigType::Encrypted) {
             $plaintext = is_scalar($value) || $value === null ? (string) $value : '';
 
-            return $this->encrypter->encryptString($plaintext);
+            return $this->encrypter->encrypt($plaintext, false);
         }
 
         if ($type === ConfigType::Array || $type === ConfigType::Json) {
@@ -508,14 +508,16 @@ class ConfigService implements ConfigStore
         }
 
         try {
-            return (string) $this->encrypter->decryptString($value);
+            $plaintext = $this->encrypter->decrypt($value, false);
         } catch (Throwable $exception) {
             throw new InvalidArgumentException(
-                'Unable to decrypt encrypted config value: ' . $exception->getMessage(),
+                'Unable to decrypt encrypted config value.',
                 0,
                 $exception,
             );
         }
+
+        return is_scalar($plaintext) || $plaintext === null ? (string) $plaintext : '';
     }
 
     /**

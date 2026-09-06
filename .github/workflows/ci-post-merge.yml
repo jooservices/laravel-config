@@ -39,6 +39,8 @@ jobs:
 
       - name: Install Composer dependencies
         uses: ramsey/composer-install@v4
+        with:
+          ignore-cache: true
 
       - name: Composer validate
         run: composer validate --strict
@@ -85,6 +87,8 @@ jobs:
 
       - name: Install Composer dependencies
         uses: ramsey/composer-install@v4
+        with:
+          ignore-cache: true
 
       - name: Require Laravel ${{ matrix.laravel }}
         run: |

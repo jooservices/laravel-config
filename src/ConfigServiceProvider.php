@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace JOOservices\LaravelConfig;
 
+use Illuminate\Contracts\Encryption\Encrypter;
 use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Encryption\Encrypter;
 use Illuminate\Support\ServiceProvider;
 use JOOservices\LaravelConfig\Console\Commands\DoctorConfigCommand;
 use JOOservices\LaravelConfig\Console\Commands\EnsureConfigIndexCommand;

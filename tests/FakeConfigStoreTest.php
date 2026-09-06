@@ -166,7 +166,7 @@ class FakeConfigStoreTest extends TestCase
     public function test_fake_config_store_encrypted_normalizes_to_string(): void
     {
         $fake = new FakeConfigStore();
-        $fake->set('secrets.token', 'plain', 'encrypted');
+        $fake->set('  secrets.token  ', 'plain', 'encrypted');
 
         $this->assertSame('plain', $fake->get('secrets.token'));
         $this->assertSame('encrypted', $fake->listOrdered()->first()['type'] ?? null);

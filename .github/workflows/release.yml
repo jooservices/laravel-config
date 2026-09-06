@@ -55,6 +55,8 @@ jobs:
 
       - name: Install Composer dependencies
         uses: ramsey/composer-install@v4
+        with:
+          ignore-cache: true
 
       - name: Validate Composer metadata
         run: composer validate --strict

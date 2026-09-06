@@ -139,9 +139,10 @@ class FakeConfigStore implements ConfigStore
                 ? ConfigType::parse($type)
                 : ConfigType::infer($value);
 
+            $normalizedPath = $configPath->group . '.' . $configPath->key;
             $this->items[$configPath->group] ??= [];
             $this->items[$configPath->group][$configPath->key] = $this->normalizeValue($value, $configType);
-            $this->types[$path] = $configType->value;
+            $this->types[$normalizedPath] = $configType->value;
         }
     }
 
@@ -175,7 +176,8 @@ class FakeConfigStore implements ConfigStore
             return false;
         }
 
-        unset($this->items[$configPath->group][$configPath->key], $this->types[$path]);
+        $normalizedPath = $configPath->group . '.' . $configPath->key;
+        unset($this->items[$configPath->group][$configPath->key], $this->types[$normalizedPath]);
 
         if ($this->items[$configPath->group] === []) {
             unset($this->items[$configPath->group]);
