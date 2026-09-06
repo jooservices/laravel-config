@@ -11,8 +11,13 @@ final class ConfigPath
     public function __construct(
         public readonly string $group,
         public readonly string $key,
-    ) {}
+    ) {
+    }
 
+    /**
+     * Parse `group.key` paths. The first segment is the group; the remainder
+     * (joined with dots) is the key, so nested keys like `mail.smtp.host` work.
+     */
     public static function fromString(string $path): self
     {
         $normalizedPath = trim($path);
@@ -26,12 +31,15 @@ final class ConfigPath
             throw new InvalidArgumentException("Invalid config path: {$path}. Must be group.key");
         }
 
-        $parts = array_map('trim', explode('.', $normalizedPath));
+        $parts = array_map(trim(...), explode('.', $normalizedPath));
 
-        if (count($parts) !== 2 || $parts[0] === '' || $parts[1] === '') {
+        if (count($parts) < 2 || in_array('', $parts, true)) {
             throw new InvalidArgumentException("Invalid config path: {$path}. Must be group.key");
         }
 
-        return new self($parts[0], $parts[1]);
+        $group = array_shift($parts);
+        $key = implode('.', $parts);
+
+        return new self((string) $group, $key);
     }
 }

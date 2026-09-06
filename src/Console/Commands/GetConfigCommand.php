@@ -6,6 +6,7 @@ namespace JOOservices\LaravelConfig\Console\Commands;
 
 use JOOservices\LaravelConfig\Contracts\ConfigStore;
 use JsonException;
+use Throwable;
 
 class GetConfigCommand extends ConfigCommand
 {
@@ -19,7 +20,7 @@ class GetConfigCommand extends ConfigCommand
 
         $value = $configService->get(
             $this->pathArgument(),
-            $default
+            $default,
         );
 
         $this->line($this->formatValue($value));
@@ -46,7 +47,7 @@ class GetConfigCommand extends ConfigCommand
         }
 
         if (is_resource($value)) {
-            return 'resource('.get_resource_type($value).')';
+            return 'resource(' . get_resource_type($value) . ')';
         }
 
         if (is_scalar($value)) {
@@ -63,8 +64,8 @@ class GetConfigCommand extends ConfigCommand
         } catch (JsonException) {
             try {
                 return var_export($value, true);
-            } catch (\Throwable) {
-                return $value::class.' object';
+            } catch (Throwable) {
+                return $value::class . ' object';
             }
         }
     }

@@ -14,6 +14,8 @@ permissions:
 
 env:
   PHP_VERSION: '8.5'
+  MONGODB_URI: mongodb://127.0.0.1:27017
+  MONGODB_DATABASE: laravel_config_test
 
 jobs:
   validate:
@@ -21,39 +23,47 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mongodb:
-        image: mongo:8
+        image: mongo:7.0
         ports:
           - 27017:27017
         options: >-
-          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 10
-    env:
-      MONGODB_URI: mongodb://127.0.0.1:27017
-      MONGODB_DATABASE: jooservices_configs_release
+          --health-retries 5
     steps:
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify tag commit is on master
+        run: |
+          git fetch origin master
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/master; then
+            echo "Refusing release: tag commit is not on origin/master"
+            exit 1
+          fi
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1 # v2.36.0
+        uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ env.PHP_VERSION }}
-          extensions: mongodb
+          extensions: mbstring, json, mongodb
           coverage: none
 
       - name: Install Composer dependencies
-        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # v4.0.0
+        uses: ramsey/composer-install@v4
 
       - name: Validate Composer metadata
         run: composer validate --strict
 
       - name: Run security audit
-        run: composer audit --locked --abandoned=ignore
+        run: composer audit
 
       - name: Run lint checks
-        run: composer lint:all
+        run: composer lint
 
       - name: Run tests
         run: composer test -- --no-coverage
@@ -62,28 +72,43 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     needs: [validate]
-    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-')
     steps:
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        uses: actions/checkout@v7
         with:
-          generate_release_notes: true
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} already exists; skipping create."
+            exit 0
+          fi
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes
 
   publish:
     name: Publish to Packagist
     runs-on: ubuntu-latest
     needs: [release]
-    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-')
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') &&
+      !contains(github.ref, '-')
     steps:
-      - name: Trigger Packagist update
+      - name: Trigger Packagist Update
         env:
           PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
           PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
-        if: ${{ env.PACKAGIST_USERNAME != '' && env.PACKAGIST_TOKEN != '' }}
         run: |
-          curl -XPOST -H 'content-type:application/json' \
+          if [ -z "${PACKAGIST_USERNAME}" ] || [ -z "${PACKAGIST_TOKEN}" ]; then
+            echo "Packagist update skipped because PACKAGIST_USERNAME or PACKAGIST_TOKEN is not configured."
+            exit 0
+          fi
+          curl -XPOST -H'content-type:application/json' \
             "https://packagist.org/api/update-package?username=${PACKAGIST_USERNAME}" \
-            -d '{"repository":{"url":"https://github.com/jooservices/laravel-config"},"api_token":"'"${PACKAGIST_TOKEN}"'"}'
+            -d'{"repository":{"url":"https://github.com/jooservices/laravel-config"},"api_token":"'"${PACKAGIST_TOKEN}"'"}'

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JOOservices\LaravelConfig\Testing;
 
 use Illuminate\Support\Collection;
+use InvalidArgumentException;
 use JOOservices\LaravelConfig\Contracts\ConfigStore;
 use JOOservices\LaravelConfig\Support\ConfigPath;
 use JOOservices\LaravelConfig\Support\ConfigType;
@@ -14,12 +15,28 @@ class FakeConfigStore implements ConfigStore
     /** @var array<string, array<string, mixed>> */
     protected array $items = [];
 
+    /** @var array<string, string> */
+    protected array $types = [];
+
     /**
      * @param  array<string, array<string, mixed>>  $seed
      */
     public function __construct(array $seed = [])
     {
-        $this->items = $seed;
+        foreach ($seed as $group => $keys) {
+            if (! is_string($group) || ! is_array($keys)) {
+                continue;
+            }
+
+            foreach ($keys as $key => $value) {
+                if (! is_string($key)) {
+                    continue;
+                }
+
+                $this->items[$group][$key] = $value;
+                $this->types[$group . '.' . $key] = ConfigType::infer($value)->value;
+            }
+        }
     }
 
     public function get(string $path, mixed $default = null): mixed
@@ -94,11 +111,38 @@ class FakeConfigStore implements ConfigStore
 
     public function set(string $path, mixed $value, ?string $type = null): void
     {
-        $configPath = $this->parsePath($path);
-        $configType = $type === null ? ConfigType::infer($value) : ConfigType::parse($type);
+        $this->setMany([
+            $path => [
+                'value' => $value,
+                'type' => $type,
+            ],
+        ]);
+    }
 
-        $this->items[$configPath->group] ??= [];
-        $this->items[$configPath->group][$configPath->key] = $this->normalizeValue($value, $configType);
+    public function setMany(array $entries): void
+    {
+        foreach ($entries as $path => $entry) {
+            if (! is_string($path) || $path === '') {
+                throw new InvalidArgumentException('Config path keys must be non-empty strings.');
+            }
+
+            if (is_array($entry) && array_key_exists('value', $entry)) {
+                $value = $entry['value'];
+                $type = $entry['type'] ?? null;
+            } else {
+                $value = $entry;
+                $type = null;
+            }
+
+            $configPath = $this->parsePath($path);
+            $configType = is_string($type) && $type !== ''
+                ? ConfigType::parse($type)
+                : ConfigType::infer($value);
+
+            $this->items[$configPath->group] ??= [];
+            $this->items[$configPath->group][$configPath->key] = $this->normalizeValue($value, $configType);
+            $this->types[$path] = $configType->value;
+        }
     }
 
     public function remember(string $path, mixed $default, ?string $type = null): mixed
@@ -131,7 +175,7 @@ class FakeConfigStore implements ConfigStore
             return false;
         }
 
-        unset($this->items[$configPath->group][$configPath->key]);
+        unset($this->items[$configPath->group][$configPath->key], $this->types[$path]);
 
         if ($this->items[$configPath->group] === []) {
             unset($this->items[$configPath->group]);
@@ -154,11 +198,12 @@ class FakeConfigStore implements ConfigStore
                         continue;
                     }
 
+                    $path = $group . '.' . $key;
                     $records[] = [
                         'group' => $group,
                         'key' => $key,
                         'value' => $value,
-                        'type' => $this->inferType($value),
+                        'type' => $this->types[$path] ?? $this->inferType($value),
                     ];
                 }
 
@@ -199,7 +244,7 @@ class FakeConfigStore implements ConfigStore
     protected function normalizeValue(mixed $value, ConfigType $type): mixed
     {
         return match ($type) {
-            ConfigType::String => is_scalar($value) || $value === null ? (string) $value : '',
+            ConfigType::String, ConfigType::Encrypted => is_scalar($value) || $value === null ? (string) $value : '',
             ConfigType::Int => is_numeric($value) ? (int) $value : 0,
             ConfigType::Float => is_numeric($value) ? (float) $value : 0.0,
             ConfigType::Bool => filter_var($value, FILTER_VALIDATE_BOOLEAN),
@@ -210,14 +255,6 @@ class FakeConfigStore implements ConfigStore
 
     protected function inferType(mixed $value): string
     {
-        return match (true) {
-            is_string($value) => ConfigType::String->value,
-            is_int($value) => ConfigType::Int->value,
-            is_float($value) => ConfigType::Float->value,
-            is_bool($value) => ConfigType::Bool->value,
-            is_array($value) => ConfigType::Array->value,
-            $value === null => ConfigType::Null->value,
-            default => ConfigType::String->value,
-        };
+        return ConfigType::infer($value)->value;
     }
 }

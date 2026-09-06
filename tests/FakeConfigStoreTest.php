@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JOOservices\LaravelConfig\Tests;
 
+use InvalidArgumentException;
 use JOOservices\LaravelConfig\Facades\Config;
 use JOOservices\LaravelConfig\Testing\FakeConfigStore;
 
@@ -51,7 +52,7 @@ class FakeConfigStoreTest extends TestCase
         $items = $fake->listOrdered();
 
         $paths = $items->map(
-            fn (array $row): string => $row['group'].'.'.$row['key']
+            fn(array $row): string => $row['group'] . '.' . $row['key'],
         )->all();
 
         $this->assertSame(['payment.a', 'payment.b', 'system.a'], $paths);
@@ -112,7 +113,7 @@ class FakeConfigStoreTest extends TestCase
     {
         $fake = new FakeConfigStore();
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $fake->set('system.bad', 'value', 'boolean');
     }
 
@@ -139,5 +140,35 @@ class FakeConfigStoreTest extends TestCase
 
         $this->assertSame('XCrawler', $fake->get('system.site_name'));
         $this->assertSame('config_group_key_unique', $fake->ensureIndexes());
+    }
+
+    public function test_fake_config_store_skips_invalid_seed_entries(): void
+    {
+        $fake = new FakeConfigStore([
+            123 => ['ignored' => 'x'],
+            'system' => [
+                0 => 'numeric-key',
+                'ok' => 'value',
+            ],
+        ]);
+
+        $this->assertSame(['ok' => 'value'], $fake->group('system'));
+    }
+
+    public function test_fake_config_store_set_many_rejects_empty_path(): void
+    {
+        $fake = new FakeConfigStore();
+
+        $this->expectException(InvalidArgumentException::class);
+        $fake->setMany(['' => 'value']);
+    }
+
+    public function test_fake_config_store_encrypted_normalizes_to_string(): void
+    {
+        $fake = new FakeConfigStore();
+        $fake->set('secrets.token', 'plain', 'encrypted');
+
+        $this->assertSame('plain', $fake->get('secrets.token'));
+        $this->assertSame('encrypted', $fake->listOrdered()->first()['type'] ?? null);
     }
 }

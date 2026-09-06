@@ -2,9 +2,33 @@
 
 All notable changes to `jooservices/laravel-config` should be documented here.
 
-## Unreleased
+## [Unreleased] — 4.0.0 (planned, not released)
 
-- add package-owned ordered config listing API so consumer apps can stop querying config documents directly
+JOOservices adopt + v4.0.0 preparation. **Not tagged.** Packagist remains at
+`1.4.0` until release is confirmed.
+
+### Breaking (planned)
+
+- Require PHP `^8.5`, Laravel `^12|^13` only (drop Laravel 11), and
+  `mongodb/laravel-mongodb` `^5.7`
+- Nested paths: first segment = group, remainder = key (dots allowed in key)
+- `ConfigType::Encrypted` (Laravel Crypt) for secrets
+- `listOrdered()` returns normalized values (same as `get`)
+- `ConfigChanged` no longer embeds plaintext for encrypted values
+- Prefer package `Config` / `ConfigStore` facade — do not bind as Laravel `Config`
+- Composer author `Viet Vu <jooservices@gmail.com>`
+- Drop AI instruction sync tooling
+
+### Added / changed (planned)
+
+- `setMany()` / bulk import with a single cache bump
+- Import CLI `--dry-run`; `--force` required to replace without merge
+- Pint `per`, Larastan, and JOOservices CI / docs / governance parity with
+  `dto` / `laravel-events`
+
+### Docs
+
+- Add `UPGRADE-4.0.md`, repo audit vs dto, and refreshed maintenance risks
 
 ## 1.3.0 - 2026-07-06
 

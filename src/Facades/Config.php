@@ -10,6 +10,8 @@ use JOOservices\LaravelConfig\Services\ConfigService;
 use JOOservices\LaravelConfig\Testing\FakeConfigStore;
 
 /**
+ * Prefer importing this facade FQCN. Do not register it as Laravel's `Config` alias.
+ *
  * @method static mixed get(string $path, mixed $default = null)
  * @method static string|null getString(string $path, ?string $default = null)
  * @method static int|null getInt(string $path, ?int $default = null)
@@ -18,6 +20,7 @@ use JOOservices\LaravelConfig\Testing\FakeConfigStore;
  * @method static array<string, mixed>|null getArray(string $path, array<string, mixed>|null $default = null)
  * @method static mixed fresh(string $path, mixed $default = null)
  * @method static void set(string $path, mixed $value, ?string $type = null)
+ * @method static void setMany(array<string, array{value: mixed, type?: string|null}|mixed> $entries)
  * @method static mixed remember(string $path, mixed $default, ?string $type = null)
  * @method static bool has(string $path)
  * @method static bool forget(string $path)

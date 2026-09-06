@@ -4,11 +4,11 @@ Describe the change in a few sentences.
 
 ## What changed
 
-- 
+-
 
 ## Why
 
-- 
+-
 
 ## How tested
 
@@ -25,12 +25,12 @@ Describe the main risk and how to roll the change back if needed.
 ## Checklist
 
 - [ ] I inspected the actual code and documentation before changing files.
-- [ ] I kept the change focused and avoided unrelated refactors.
+- [ ] I kept the change focused on Laravel event persistence and audit logging.
 - [ ] I updated docs, README, governance files, or AI instructions when needed.
 - [ ] I added or updated tests if behavior changed.
-- [ ] I considered security impact.
-- [ ] The PR base branch matches the approved Git flow (`develop` for normal work, `master` for release or hotfix work).
+- [ ] I used real MongoDB integration flow for persisted event/audit data.
+- [ ] I considered security impact and redaction/PII concerns.
 - [ ] I ran the required quality gates and they passed with zero warnings or notices.
-- [ ] `composer lint:all`
+- [ ] `composer lint`
 - [ ] `composer test`
 - [ ] `composer check`

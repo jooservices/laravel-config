@@ -47,6 +47,10 @@ final class ConfigTypeBench
      */
     public function benchSupportedList(): void
     {
-        ConfigType::supportedList();
+        $list = ConfigType::supportedList();
+
+        if ($list === '') {
+            throw new RuntimeException('Expected non-empty supported type list.');
+        }
     }
 }

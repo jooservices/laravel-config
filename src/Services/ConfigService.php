@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JOOservices\LaravelConfig\Services;
 
 use Illuminate\Contracts\Cache\Repository;
+use Illuminate\Encryption\Encrypter;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
 use JOOservices\LaravelConfig\Contracts\ConfigStore;
@@ -14,6 +15,7 @@ use JOOservices\LaravelConfig\Models\Config as ConfigModel;
 use JOOservices\LaravelConfig\Support\ConfigPath;
 use JOOservices\LaravelConfig\Support\ConfigType;
 use JsonException;
+use Throwable;
 
 class ConfigService implements ConfigStore
 {
@@ -26,7 +28,9 @@ class ConfigService implements ConfigStore
 
     public function __construct(
         protected Repository $cacheStore,
-    ) {}
+        protected Encrypter $encrypter,
+    ) {
+    }
 
     public function get(string $path, mixed $default = null): mixed
     {
@@ -46,22 +50,22 @@ class ConfigService implements ConfigStore
 
     public function getString(string $path, ?string $default = null): ?string
     {
-        return $this->typedGet($path, $default, static fn (mixed $value): ?string => is_string($value) ? $value : null);
+        return $this->typedGet($path, $default, static fn(mixed $value): ?string => is_string($value) ? $value : null);
     }
 
     public function getInt(string $path, ?int $default = null): ?int
     {
-        return $this->typedGet($path, $default, static fn (mixed $value): ?int => is_int($value) ? $value : null);
+        return $this->typedGet($path, $default, static fn(mixed $value): ?int => is_int($value) ? $value : null);
     }
 
     public function getFloat(string $path, ?float $default = null): ?float
     {
-        return $this->typedGet($path, $default, static fn (mixed $value): ?float => is_float($value) ? $value : null);
+        return $this->typedGet($path, $default, static fn(mixed $value): ?float => is_float($value) ? $value : null);
     }
 
     public function getBool(string $path, ?bool $default = null): ?bool
     {
-        return $this->typedGet($path, $default, static fn (mixed $value): ?bool => is_bool($value) ? $value : null);
+        return $this->typedGet($path, $default, static fn(mixed $value): ?bool => is_bool($value) ? $value : null);
     }
 
     /**
@@ -97,37 +101,74 @@ class ConfigService implements ConfigStore
 
     public function set(string $path, mixed $value, ?string $type = null): void
     {
-        $configPath = $this->parsePath($path);
+        $this->setMany([
+            $path => [
+                'value' => $value,
+                'type' => $type,
+            ],
+        ]);
+    }
 
-        $configType = $type === null ? ConfigType::infer($value) : ConfigType::parse($type);
-        $storedValue = $this->valueForStorage($value, $configType);
-        $normalizedValue = $this->normalizeValue($storedValue, $configType);
+    public function setMany(array $entries): void
+    {
+        if ($entries === []) {
+            return;
+        }
 
-        ConfigModel::updateOrCreate(
-            [
+        $mutations = [];
+
+        foreach ($entries as $path => $entry) {
+            if (! is_string($path) || $path === '') {
+                throw new InvalidArgumentException('Config path keys must be non-empty strings.');
+            }
+
+            [$value, $type] = $this->resolveEntry($entry);
+            $configPath = $this->parsePath($path);
+            $configType = $type === null ? ConfigType::infer($value) : ConfigType::parse($type);
+            $storedValue = $this->valueForStorage($value, $configType);
+            $normalizedValue = $this->normalizeValue(
+                $configType === ConfigType::Encrypted ? $value : $storedValue,
+                $configType,
+            );
+
+            ConfigModel::updateOrCreate(
+                [
+                    'group' => $configPath->group,
+                    'key' => $configPath->key,
+                ],
+                [
+                    'value' => $storedValue,
+                    'type' => $configType->value,
+                ],
+            );
+
+            $mutations[] = [
+                'path' => $path,
                 'group' => $configPath->group,
                 'key' => $configPath->key,
-            ],
-            [
-                'value' => $storedValue,
-                'type' => $configType->value,
-            ]
-        );
+                'normalized' => $normalizedValue,
+                'type' => $configType,
+            ];
+        }
 
         $this->bumpCacheVersion();
 
         if (! $this->loaded) {
             $this->invalidateCache();
-
-            event(new ConfigChanged($path, $normalizedValue, $configType->value));
-
-            return;
+        } else {
+            foreach ($mutations as $mutation) {
+                $this->items[$mutation['group']][$mutation['key']] = $mutation['normalized'];
+            }
+            $this->putCache();
         }
 
-        $this->items[$configPath->group][$configPath->key] = $normalizedValue;
-        $this->putCache();
-
-        event(new ConfigChanged($path, $normalizedValue, $configType->value));
+        foreach ($mutations as $mutation) {
+            $this->dispatchChanged(
+                $mutation['path'],
+                $mutation['normalized'],
+                $mutation['type'],
+            );
+        }
     }
 
     public function remember(string $path, mixed $default, ?string $type = null): mixed
@@ -197,19 +238,27 @@ class ConfigService implements ConfigStore
      */
     public function listOrdered(): Collection
     {
-        return ConfigModel::query()
-            ->orderBy('group')
-            ->orderBy('key')
-            ->get()
-            ->map(function (object $record): array {
-                return [
-                    'group' => $this->stringifyScalar($record->group ?? null),
-                    'key' => $this->stringifyScalar($record->key ?? null),
-                    'value' => $record->value ?? null,
-                    'type' => $this->stringifyScalar($record->type ?? null),
-                ];
-            })
-            ->values();
+        /** @var list<array{group: string, key: string, value: mixed, type: string}> $rows */
+        $rows = [];
+
+        foreach (
+            ConfigModel::query()
+                ->orderBy('group')
+                ->orderBy('key')
+                ->get() as $record
+        ) {
+            $type = $this->stringifyScalar($record->type ?? null);
+            $resolvedType = $type === '' ? 'string' : $type;
+
+            $rows[] = [
+                'group' => $this->stringifyScalar($record->group ?? null),
+                'key' => $this->stringifyScalar($record->key ?? null),
+                'value' => $this->normalizeStoredValue($record->value ?? null, $resolvedType),
+                'type' => $resolvedType,
+            ];
+        }
+
+        return Collection::make($rows);
     }
 
     public function group(string $group): array
@@ -274,7 +323,7 @@ class ConfigService implements ConfigStore
             $this->items[$group] ??= [];
             $this->items[$group][$key] = $this->normalizeStoredValue(
                 $record->value,
-                $record->type ?? 'string'
+                $record->type ?? 'string',
             );
         }
     }
@@ -286,7 +335,7 @@ class ConfigService implements ConfigStore
         ConfigModel::query()->raw(function ($collection) use ($indexName) {
             return $collection->createIndex(
                 ['group' => 1, 'key' => 1],
-                ['name' => $indexName, 'unique' => true]
+                ['name' => $indexName, 'unique' => true],
             );
         });
 
@@ -302,7 +351,7 @@ class ConfigService implements ConfigStore
         $this->cacheStore->put(
             $this->getCacheKey(),
             $this->items,
-            $this->getCacheTtl()
+            $this->getCacheTtl(),
         );
     }
 
@@ -348,6 +397,10 @@ class ConfigService implements ConfigStore
 
         if ($configType === null) {
             return $value;
+        }
+
+        if ($configType === ConfigType::Encrypted) {
+            return $this->decryptStoredValue($value);
         }
 
         return $this->normalizeValue($value, $configType);
@@ -423,11 +476,18 @@ class ConfigService implements ConfigStore
                 ? $this->decodeJsonArray($value)
                 : (is_array($value) ? $this->normalizeArrayMap($value) : []),
             ConfigType::Null => null,
+            ConfigType::Encrypted => is_scalar($value) || $value === null ? (string) $value : '',
         };
     }
 
     protected function valueForStorage(mixed $value, ConfigType $type): mixed
     {
+        if ($type === ConfigType::Encrypted) {
+            $plaintext = is_scalar($value) || $value === null ? (string) $value : '';
+
+            return $this->encrypter->encryptString($plaintext);
+        }
+
         if ($type === ConfigType::Array || $type === ConfigType::Json) {
             if (is_string($value)) {
                 $this->decodeJsonArray($value);
@@ -441,6 +501,48 @@ class ConfigService implements ConfigStore
         return $value;
     }
 
+    protected function decryptStoredValue(mixed $value): string
+    {
+        if (! is_string($value) || $value === '') {
+            return '';
+        }
+
+        try {
+            return (string) $this->encrypter->decryptString($value);
+        } catch (Throwable $exception) {
+            throw new InvalidArgumentException(
+                'Unable to decrypt encrypted config value: ' . $exception->getMessage(),
+                0,
+                $exception,
+            );
+        }
+    }
+
+    /**
+     * @return array{0: mixed, 1: string|null}
+     */
+    protected function resolveEntry(mixed $entry): array
+    {
+        if (is_array($entry) && array_key_exists('value', $entry)) {
+            $type = $entry['type'] ?? null;
+
+            return [$entry['value'], is_string($type) ? $type : null];
+        }
+
+        return [$entry, null];
+    }
+
+    protected function dispatchChanged(string $path, mixed $normalizedValue, ConfigType $type): void
+    {
+        if ($type->isSensitive()) {
+            event(new ConfigChanged($path, null, $type->value));
+
+            return;
+        }
+
+        event(new ConfigChanged($path, $normalizedValue, $type->value));
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -449,7 +551,7 @@ class ConfigService implements ConfigStore
         try {
             $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
-            throw new InvalidArgumentException('Invalid JSON value: '.$exception->getMessage(), 0, $exception);
+            throw new InvalidArgumentException('Invalid JSON value: ' . $exception->getMessage(), 0, $exception);
         }
 
         if (! is_array($decoded)) {
@@ -473,9 +575,9 @@ class ConfigService implements ConfigStore
             $encoded = json_encode($value, JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
             throw new InvalidArgumentException(
-                'Unable to encode value as JSON: '.$exception->getMessage(),
+                'Unable to encode value as JSON: ' . $exception->getMessage(),
                 0,
-                $exception
+                $exception,
             );
         }
 
@@ -500,7 +602,7 @@ class ConfigService implements ConfigStore
         if ($typed === null && $value !== null) {
             throw new InvalidArgumentException(sprintf(
                 'Config value at [%s] is not the expected type.',
-                $path
+                $path,
             ));
         }
 
@@ -536,7 +638,7 @@ class ConfigService implements ConfigStore
             return $configured;
         }
 
-        return $this->getCacheKey().':version';
+        return $this->getCacheKey() . ':version';
     }
 
     protected function getCacheTtl(): int

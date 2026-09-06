@@ -30,10 +30,10 @@ class DoctorConfigCommand extends Command
 
         foreach ($checks as $label => $passed) {
             if ($passed) {
-                $this->info('[ok] '.$label);
+                $this->info('[ok] ' . $label);
             } else {
                 $failed = true;
-                $this->error('[fail] '.$label);
+                $this->error('[fail] ' . $label);
             }
         }
 
@@ -83,7 +83,7 @@ class DoctorConfigCommand extends Command
                 ? $configuredStore
                 : (is_string($defaultStore) ? $defaultStore : 'array');
             $cache = $cacheFactory->store($storeName);
-            $key = 'config_store_doctor_'.uniqid('', true);
+            $key = 'config_store_doctor_' . uniqid('', true);
             $cache->put($key, 'ok', 60);
 
             return $cache->get($key) === 'ok';

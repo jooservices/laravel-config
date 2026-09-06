@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JOOservices\LaravelConfig\Tests;
 
 use Illuminate\Support\Facades\Cache;
+use InvalidArgumentException;
 use JOOservices\LaravelConfig\Contracts\ConfigStore;
 use JOOservices\LaravelConfig\Facades\Config;
 use JOOservices\LaravelConfig\Models\Config as ConfigModel;
@@ -133,7 +134,7 @@ class ConfigServiceTest extends TestCase
         $items = Config::listOrdered();
 
         $paths = $items->map(
-            fn (array $row): string => $row['group'].'.'.$row['key']
+            fn(array $row): string => $row['group'] . '.' . $row['key'],
         )->all();
 
         $this->assertSame(['payment.a', 'payment.b', 'system.a'], $paths);
@@ -221,7 +222,7 @@ class ConfigServiceTest extends TestCase
 
     public function test_invalid_path_empty_throws(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage(self::INVALID_PATH_MESSAGE);
 
         Config::get('');
@@ -229,7 +230,7 @@ class ConfigServiceTest extends TestCase
 
     public function test_invalid_path_single_segment_throws(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Must be group.key');
 
         Config::get('system');
@@ -237,7 +238,7 @@ class ConfigServiceTest extends TestCase
 
     public function test_invalid_path_leading_dot_throws(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage(self::INVALID_PATH_MESSAGE);
 
         Config::get('.system.key');
@@ -245,7 +246,7 @@ class ConfigServiceTest extends TestCase
 
     public function test_invalid_path_trailing_dot_throws(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage(self::INVALID_PATH_MESSAGE);
 
         Config::get('system.');
@@ -253,7 +254,7 @@ class ConfigServiceTest extends TestCase
 
     public function test_invalid_path_double_dot_throws(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Must be group.key');
 
         Config::get('system..site_name');
@@ -261,25 +262,25 @@ class ConfigServiceTest extends TestCase
 
     public function test_set_invalid_path_throws(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         Config::set('system', 'value');
     }
 
     public function test_has_invalid_path_throws(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         Config::has('system');
     }
 
     public function test_forget_invalid_path_throws(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         Config::forget('single');
     }
 
     public function test_fresh_invalid_path_throws(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         Config::fresh('system');
     }
 
@@ -472,13 +473,13 @@ class ConfigServiceTest extends TestCase
 
     public function test_set_with_invalid_type_throws(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         Config::set('system.bad', 'value', 'boolean');
     }
 
     public function test_set_with_invalid_json_throws(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         Config::set('system.bad_json', '{invalid', 'json');
     }
 
@@ -507,7 +508,7 @@ class ConfigServiceTest extends TestCase
     {
         Config::set('typed.wrong', 'text');
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         Config::getInt('typed.wrong');
     }
 
@@ -607,7 +608,7 @@ class ConfigServiceTest extends TestCase
 
     public function test_set_json_type_rejects_non_array_json_document(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('JSON value must decode to an array');
 
         Config::set('system.scalar_json', '"just-a-string"', 'json');
@@ -619,7 +620,7 @@ class ConfigServiceTest extends TestCase
         $this->assertIsResource($resource);
 
         try {
-            $this->expectException(\InvalidArgumentException::class);
+            $this->expectException(InvalidArgumentException::class);
             $this->expectExceptionMessage('Unable to encode value as JSON');
 
             Config::set('system.bad', ['stream' => $resource], 'array');
@@ -637,7 +638,7 @@ class ConfigServiceTest extends TestCase
     {
         Config::set('typed.count', 3);
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         Config::getString('typed.count');
     }
 
@@ -645,7 +646,7 @@ class ConfigServiceTest extends TestCase
     {
         Config::set('typed.text', 'hello');
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         Config::getArray('typed.text', ['fallback' => true]);
     }
 
@@ -657,5 +658,106 @@ class ConfigServiceTest extends TestCase
         Config::set('system.versioned', 'ok');
 
         $this->assertNotSame(0, Cache::store('array')->get('custom_config_version_test'));
+    }
+
+    public function test_nested_path_uses_first_segment_as_group(): void
+    {
+        Config::set('mail.smtp.host', 'smtp.example.com');
+
+        $this->assertSame('smtp.example.com', Config::get('mail.smtp.host'));
+        $this->assertSame(['smtp.host' => 'smtp.example.com'], Config::group('mail'));
+    }
+
+    public function test_set_many_persists_entries_with_single_cycle(): void
+    {
+        Config::setMany([
+            'system.site_name' => 'XCrawler',
+            'payment.retry' => ['value' => '3', 'type' => 'int'],
+        ]);
+
+        $this->assertSame('XCrawler', Config::get('system.site_name'));
+        $this->assertSame(3, Config::get('payment.retry'));
+    }
+
+    public function test_encrypted_type_round_trips_plaintext(): void
+    {
+        $faker = fake();
+        $secret = $faker->password(16);
+
+        Config::set('secrets.api_token', $secret, 'encrypted');
+
+        $record = ConfigModel::where('group', 'secrets')->where('key', 'api_token')->first();
+        $this->assertNotNull($record);
+        $this->assertSame('encrypted', $record->type);
+        $this->assertNotSame($secret, $record->value);
+        $this->assertSame($secret, Config::get('secrets.api_token'));
+    }
+
+    public function test_list_ordered_normalizes_json_values(): void
+    {
+        Config::set('system.payload', ['foo' => 'bar'], 'json');
+
+        $row = Config::listOrdered()->first(
+            static fn(array $item): bool => $item['group'] === 'system' && $item['key'] === 'payload',
+        );
+
+        $this->assertNotNull($row);
+        $this->assertSame(['foo' => 'bar'], $row['value']);
+        $this->assertSame('json', $row['type']);
+    }
+
+    public function test_set_many_with_empty_entries_is_noop(): void
+    {
+        Config::setMany([]);
+        $this->assertSame([], Config::all());
+    }
+
+    public function test_encrypted_decrypt_failure_throws(): void
+    {
+        ConfigModel::create([
+            'group' => 'secrets',
+            'key' => 'broken',
+            'value' => 'not-a-valid-payload',
+            'type' => 'encrypted',
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unable to decrypt encrypted config value');
+
+        Config::refresh();
+        Config::get('secrets.broken');
+    }
+
+    public function test_ensure_indexes_returns_index_name(): void
+    {
+        $this->assertSame('config_group_key_unique', Config::ensureIndexes());
+    }
+
+    public function test_normalize_non_scalar_string_falls_back_to_empty(): void
+    {
+        ConfigModel::create([
+            'group' => 'weird',
+            'key' => 'obj',
+            'value' => ['not' => 'scalar'],
+            'type' => 'string',
+        ]);
+        Config::refresh();
+
+        $this->assertSame('', Config::get('weird.obj'));
+    }
+
+    public function test_set_many_rejects_empty_path_key(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        Config::setMany(['' => 'value']);
+    }
+
+    public function test_non_numeric_cache_ttl_falls_back_to_default(): void
+    {
+        $this->app['config']->set('config-store.cache_ttl', 'not-a-number');
+        $this->resetConfigStoreService();
+
+        Config::set('system.ttl', 'ok');
+        $this->assertSame('ok', Config::get('system.ttl'));
     }
 }

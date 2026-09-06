@@ -6,9 +6,14 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Packagist Version](https://img.shields.io/packagist/v/jooservices/laravel-config)](https://packagist.org/packages/jooservices/laravel-config)
 
-The JOOservices Laravel Config package stores Laravel application configuration in MongoDB and exposes typed runtime access through `JOOservices\\LaravelConfig\\Facades\\Config`.
+MongoDB-backed typed application configuration for Laravel, with optional cache
+and Artisan operator commands.
 
-Package name: `jooservices/laravel-config`
+Package: `jooservices/laravel-config`
+
+**Packagist status:** the published package is still **1.4.0**. The next planned
+release is **v4.0.0** (breaking). Docs and badges below describe the v4 direction
+on `develop`; do not treat Packagist as already on 4.x. See [UPGRADE-4.0.md](./UPGRADE-4.0.md).
 
 ## Install
 
@@ -22,22 +27,28 @@ Publish configuration:
 php artisan vendor:publish --tag=config-store-config
 ```
 
-## Requirements
+## Requirements (v4 direction)
 
 - PHP 8.5+
-- Laravel 12 or 13 (CI-verified)
-- Laravel 11 (constraint-compatible; not CI-verified due to testbench audit constraints)
-- MongoDB via `mongodb/laravel-mongodb` ^5.4
+- Laravel 12 or 13 only (Laravel 11 dropped)
+- MongoDB via `mongodb/laravel-mongodb` ^5.7
 - MongoDB PHP extension
 
 ## What the package does
 
 - stores values as `group`, `key`, `value`, and `type` documents in MongoDB
 - loads a full in-memory map on first read and optionally caches that map
-- supports typed normalization for `string`, `int`, `float`, `bool`, `array`, `json`, and `null`
-- provides runtime `get`, typed getters, `set`, `forget`, `remember`, `listOrdered`, `group`, `all`, `refresh`, and `fresh` operations
-- ships Artisan commands for common operator tasks
-- provides `Config::fake()` for consumer-app tests without MongoDB
+- typed normalization: `string`, `int`, `float`, `bool`, `array`, `json`, `null`,
+  and `encrypted` (Laravel Crypt) for secrets
+- nested paths: first segment = group, remainder = key (dots allowed in key),
+  e.g. `mail.smtp.host`
+- runtime `get`, typed getters, `set`, `setMany`, `forget`, `remember`,
+  `listOrdered` (normalized), `group`, `all`, `refresh`, and `fresh`
+- Artisan commands including import `--dry-run` / `--force`
+- `Config::fake()` for consumer-app tests without MongoDB
+
+Prefer `JOOservices\LaravelConfig\Facades\Config` or the `ConfigStore` alias —
+do not bind this package as Laravel’s native `Config`.
 
 ## Quick example
 
@@ -47,67 +58,39 @@ use JOOservices\LaravelConfig\Facades\Config;
 Config::set('system.site_name', 'XCrawler');
 Config::set('system.enabled', true);
 Config::set('payment.retry_times', 3);
+Config::set('mail.smtp.host', 'smtp.example.com');
 
 $siteName = Config::get('system.site_name');
 $system = Config::group('system');
 $fresh = Config::fresh('system.site_name');
 ```
 
-## Path format and validation
+## Path format
 
-Paths must use the `group.key` format.
+`group.key…` — first segment is the group; the rest (with dots) is the key.
 
-Rejected values include:
-
-- empty paths
-- missing dots
-- leading dots
-- trailing dots
-- double dots
-- empty group or empty key segments
-
-Examples:
-
-- valid: `system.site_name`
-- valid: `payment.retry_times`
-- invalid: `system`
-- invalid: `.system.site_name`
-- invalid: `system.`
-- invalid: `system..site_name`
+- valid: `system.site_name`, `mail.smtp.host`
+- invalid: `system`, `.system.site_name`, `system.`, `system..site_name`
 
 ## Cache and memory behavior
 
 - `get`, `has`, `group`, and `all` load from memory first
-- when memory is cold, the service reads the cached full map first, then MongoDB on cache miss
-- `set` and `forget` update MongoDB, bump a shared cache version stamp, and refresh the cached full map within the current process
-- when a loaded process detects a newer cache version stamp, it reloads from cache or MongoDB before serving reads
-- `refresh` clears in-memory state and the configured cache key, then reloads from MongoDB
-- `fresh` bypasses the in-memory map and cache for a direct MongoDB read
-- stored `null` is returned as `null`; caller defaults are not applied when the key exists with a null value
-- bool normalization uses PHP `filter_var(..., FILTER_VALIDATE_BOOLEAN)` semantics
+- cold memory reads the cached full map, then MongoDB on miss
+- mutations update MongoDB, bump a shared cache version stamp, and refresh the
+  process map; `setMany` / bulk import bump once per batch
+- `refresh` clears memory + cache key and reloads from MongoDB
+- `fresh` bypasses memory and cache for a direct MongoDB read
 
-Important limitations:
+Limitations: process-local memory can go stale in long-lived workers; treat the
+shared cache as a trusted boundary; keep collections config-sized.
 
-- the in-memory map is process-local, so long-running workers can hold stale in-memory state until `refresh()` is called or the process is recycled
-- each mutation rewrites the full cached map; keep collections config-sized (hundreds of keys, not thousands)
-- use a dedicated cache store/prefix in production; treat the shared cache as a trusted boundary
-
-## MongoDB index requirement
-
-Create a unique compound index on `group` and `key` so each config path remains unique.
+## MongoDB index
 
 ```bash
 php artisan config-store:ensure-index
 ```
 
-Equivalent Mongo shell command:
-
-```javascript
-db.configs.createIndex(
-  { group: 1, key: 1 },
-  { name: 'config_group_key_unique', unique: true }
-);
-```
+Unique compound index on `group` + `key`.
 
 ## Artisan commands
 
@@ -119,42 +102,31 @@ php artisan config-store:forget system.site_name
 php artisan config-store:list system --json
 php artisan config-store:doctor
 php artisan config-store:export storage/config-store.json
+php artisan config-store:import storage/config-store.json --dry-run
 php artisan config-store:import storage/config-store.json --merge
+php artisan config-store:import storage/config-store.json --force
 php artisan config-store:refresh
 php artisan config-store:ensure-index
 ```
 
+Import: use `--dry-run` to preview. Replace without merge requires `--force`.
+
 ## Security note
 
-This package can store sensitive values, but it does not encrypt stored values by default. Do not place credentials or secrets in this store unless your MongoDB deployment, backups, and access controls already satisfy your security requirements.
-
-## Upgrade note
-
-The canonical namespace for this package is now `JOOservices\\LaravelConfig\\`. Existing code that imports `JooServices\\LaravelConfig\\...` must be updated. This repository does not currently ship a compatibility alias layer.
+Use `ConfigType::Encrypted` for secrets. `ConfigChanged` does not embed
+plaintext for encrypted values. Access control for MongoDB, backups, and the
+cache store remain application responsibilities.
 
 ## Documentation
 
-Start with:
-
 - [Documentation Hub](./docs/README.md)
+- [Upgrade to 4.0](./UPGRADE-4.0.md)
 - [Installation](./docs/01-getting-started/01-installation.md)
 - [Quick Start](./docs/01-getting-started/02-quick-start.md)
-- [Configuration](./docs/02-user-guide/01-configuration.md)
 - [Usage Guide](./docs/02-user-guide/02-usage-guide.md)
-- [Release Process](./docs/04-development/06-release-process.md)
 - [Risks, Legacy, and Gaps](./docs/05-maintenance/01-risks-legacy-and-gaps.md)
+- [Repo audit vs dto](./docs/05-maintenance/03-repo-audit-dto-comparison.md)
 - [Changelog](./CHANGELOG.md)
-
-## AI support
-
-This repository includes AI contributor guidance and skill files.
-
-Start with:
-
-- [AGENTS.md](./AGENTS.md)
-- [CLAUDE.md](./CLAUDE.md)
-- [AI Skills Map](./ai/skills/README.md)
-- [AI Skills Usage Guide](./ai/skills/USAGE.md)
 
 ## Development
 
@@ -167,7 +139,7 @@ composer check
 composer ci
 ```
 
-MongoDB must be available for integration tests.
+MongoDB is required for integration tests.
 
 ## Community
 

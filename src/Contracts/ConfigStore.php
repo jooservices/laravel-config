@@ -28,6 +28,14 @@ interface ConfigStore
 
     public function set(string $path, mixed $value, ?string $type = null): void;
 
+    /**
+     * Persist many paths in one write cycle (single cache version bump).
+     *
+     * @param  array<string, array{value: mixed, type?: string|null}|mixed>  $entries
+     *         Map of path => value, or path => ['value' => mixed, 'type' => ?string]
+     */
+    public function setMany(array $entries): void;
+
     public function remember(string $path, mixed $default, ?string $type = null): mixed;
 
     public function has(string $path): bool;

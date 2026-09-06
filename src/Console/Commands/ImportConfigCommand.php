@@ -11,7 +11,7 @@ use JsonException;
 
 class ImportConfigCommand extends ConfigCommand
 {
-    protected $signature = 'config-store:import {file} {--merge}';
+    protected $signature = 'config-store:import {file} {--merge} {--dry-run} {--force}';
 
     protected $description = 'Import config-store values from JSON.';
 
@@ -23,13 +23,35 @@ class ImportConfigCommand extends ConfigCommand
             return self::FAILURE;
         }
 
-        if (! (bool) $this->option('merge')) {
+        $merge = (bool) $this->option('merge');
+        $dryRun = (bool) $this->option('dry-run');
+        $force = (bool) $this->option('force');
+
+        if (! $merge && ! $force && ! $dryRun) {
+            $this->error('Replacing all config values requires --force (or pass --merge / --dry-run).');
+
+            return self::FAILURE;
+        }
+
+        $entries = $this->flattenPayload($payload);
+
+        if ($dryRun) {
+            $this->info(sprintf(
+                'Dry-run: would %s and import %d config value(s).',
+                $merge ? 'merge' : 'replace existing values',
+                count($entries),
+            ));
+
+            return self::SUCCESS;
+        }
+
+        if (! $merge) {
             $this->replaceExistingConfig($configService);
         }
 
-        $imported = $this->importPayload($configService, $payload);
+        $configService->setMany($entries);
 
-        $this->info(sprintf('Imported %d config value(s).', $imported));
+        $this->info(sprintf('Imported %d config value(s).', count($entries)));
 
         return self::SUCCESS;
     }
@@ -58,7 +80,7 @@ class ImportConfigCommand extends ConfigCommand
         try {
             $payload = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
-            $this->error('Invalid JSON import file: '.$exception->getMessage());
+            $this->error('Invalid JSON import file: ' . $exception->getMessage());
 
             return null;
         }
@@ -74,67 +96,44 @@ class ImportConfigCommand extends ConfigCommand
 
     private function replaceExistingConfig(ConfigStore $configService): void
     {
-        foreach ($configService->all() as $group => $keys) {
-            foreach (array_keys($keys) as $key) {
-                $configService->forget($group.'.'.$key);
-            }
+        foreach ($configService->listOrdered() as $row) {
+            $configService->forget($row['group'] . '.' . $row['key']);
         }
     }
 
     /**
      * @param  array<mixed, mixed>  $payload
+     * @return array<string, array{value: mixed, type: string|null}>
      */
-    private function importPayload(ConfigStore $configService, array $payload): int
+    private function flattenPayload(array $payload): array
     {
-        $imported = 0;
+        $entries = [];
 
         foreach ($payload as $group => $keys) {
             if (! is_string($group) || ! is_array($keys)) {
                 continue;
             }
 
-            $imported += $this->importGroup($configService, $group, $keys);
-        }
+            foreach ($keys as $key => $value) {
+                if (! is_string($key)) {
+                    continue;
+                }
 
-        return $imported;
-    }
-
-    /**
-     * @param  array<mixed, mixed>  $keys
-     */
-    private function importGroup(ConfigStore $configService, string $group, array $keys): int
-    {
-        $imported = 0;
-
-        foreach ($keys as $key => $value) {
-            if (! is_string($key)) {
-                continue;
-            }
-
-            if ($this->importEntry($configService, $group, $key, $value)) {
-                $imported++;
+                try {
+                    [$valueToStore, $type] = $this->resolveImportValue($value);
+                    $resolvedType = $type ?? ConfigType::infer($valueToStore)->value;
+                    $this->assertImportValueEncodable($valueToStore, $resolvedType);
+                    $entries[$group . '.' . $key] = [
+                        'value' => $valueToStore,
+                        'type' => $resolvedType,
+                    ];
+                } catch (InvalidArgumentException $exception) {
+                    $this->error(sprintf('Skipped %s.%s: %s', $group, $key, $exception->getMessage()));
+                }
             }
         }
 
-        return $imported;
-    }
-
-    private function importEntry(ConfigStore $configService, string $group, string $key, mixed $value): bool
-    {
-        try {
-            [$valueToStore, $type] = $this->resolveImportValue($value);
-            $configService->set(
-                $group.'.'.$key,
-                $valueToStore,
-                $type ?? ConfigType::infer($valueToStore)->value
-            );
-
-            return true;
-        } catch (InvalidArgumentException $exception) {
-            $this->error(sprintf('Skipped %s.%s: %s', $group, $key, $exception->getMessage()));
-
-            return false;
-        }
+        return $entries;
     }
 
     /**
@@ -149,5 +148,38 @@ class ImportConfigCommand extends ConfigCommand
         $type = is_string($value['__type']) ? $value['__type'] : null;
 
         return [$value['__value'], $type];
+    }
+
+    private function assertImportValueEncodable(mixed $value, string $type): void
+    {
+        $configType = ConfigType::parse($type);
+
+        if ($configType !== ConfigType::Array && $configType !== ConfigType::Json) {
+            return;
+        }
+
+        if (is_string($value)) {
+            try {
+                $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
+            } catch (JsonException $exception) {
+                throw new InvalidArgumentException('Invalid JSON value: ' . $exception->getMessage(), 0, $exception);
+            }
+
+            if (! is_array($decoded)) {
+                throw new InvalidArgumentException('JSON value must decode to an array.');
+            }
+
+            return;
+        }
+
+        try {
+            json_encode($value, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException(
+                'Unable to encode value as JSON: ' . $exception->getMessage(),
+                0,
+                $exception,
+            );
+        }
     }
 }

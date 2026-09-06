@@ -125,7 +125,7 @@ class ConsoleCommandsTest extends TestCase
         Config::set('system.site_name', 'XCrawler');
         Config::set('system.enabled', true, 'bool');
 
-        $file = sys_get_temp_dir().'/config-store-export-'.uniqid('', true).'.json';
+        $file = sys_get_temp_dir() . '/config-store-export-' . uniqid('', true) . '.json';
 
         $this->artisan('config-store:export', ['file' => $file])
             ->expectsOutputToContain('Config values exported')
@@ -173,10 +173,10 @@ class ConsoleCommandsTest extends TestCase
     {
         Config::set('system.site_name', 'XCrawler');
 
-        $file = sys_get_temp_dir().'/config-store-export-success-'.uniqid('', true).'.json';
+        $file = sys_get_temp_dir() . '/config-store-export-success-' . uniqid('', true) . '.json';
 
         $this->artisan('config-store:export', ['file' => $file])
-            ->expectsOutputToContain('Config values exported to '.$file)
+            ->expectsOutputToContain('Config values exported to ' . $file)
             ->assertSuccessful();
 
         $this->assertFileExists($file);
@@ -286,7 +286,7 @@ class ConsoleCommandsTest extends TestCase
 
     public function test_import_command_rejects_invalid_json_payload(): void
     {
-        $file = sys_get_temp_dir().'/config-store-invalid-'.uniqid('', true).'.json';
+        $file = sys_get_temp_dir() . '/config-store-invalid-' . uniqid('', true) . '.json';
         file_put_contents($file, '{invalid');
 
         $this->artisan('config-store:import', ['file' => $file])
@@ -298,7 +298,7 @@ class ConsoleCommandsTest extends TestCase
 
     public function test_import_command_rejects_non_object_json_payload(): void
     {
-        $file = sys_get_temp_dir().'/config-store-array-'.uniqid('', true).'.json';
+        $file = sys_get_temp_dir() . '/config-store-array-' . uniqid('', true) . '.json';
         file_put_contents($file, '["not","an","object"]');
 
         $this->artisan('config-store:import', ['file' => $file])
@@ -313,10 +313,10 @@ class ConsoleCommandsTest extends TestCase
         Config::set('system.keep', 'old');
         Config::set('system.remove', 'gone');
 
-        $file = sys_get_temp_dir().'/config-store-replace-'.uniqid('', true).'.json';
+        $file = sys_get_temp_dir() . '/config-store-replace-' . uniqid('', true) . '.json';
         file_put_contents($file, json_encode(['system' => ['keep' => 'new']], JSON_THROW_ON_ERROR));
 
-        $this->artisan('config-store:import', ['file' => $file])
+        $this->artisan('config-store:import', ['file' => $file, '--force' => true])
             ->expectsOutputToContain('Imported 1 config value(s).')
             ->assertSuccessful();
 
@@ -328,9 +328,37 @@ class ConsoleCommandsTest extends TestCase
         unlink($file);
     }
 
+    public function test_import_command_requires_force_for_replace_mode(): void
+    {
+        $file = sys_get_temp_dir() . '/config-store-force-' . uniqid('', true) . '.json';
+        file_put_contents($file, json_encode(['system' => ['keep' => 'new']], JSON_THROW_ON_ERROR));
+
+        $this->artisan('config-store:import', ['file' => $file])
+            ->expectsOutputToContain('requires --force')
+            ->assertFailed();
+
+        unlink($file);
+    }
+
+    public function test_import_command_dry_run_does_not_write(): void
+    {
+        Config::set('system.keep', 'old');
+
+        $file = sys_get_temp_dir() . '/config-store-dry-' . uniqid('', true) . '.json';
+        file_put_contents($file, json_encode(['system' => ['keep' => 'new']], JSON_THROW_ON_ERROR));
+
+        $this->artisan('config-store:import', ['file' => $file, '--dry-run' => true])
+            ->expectsOutputToContain('Dry-run:')
+            ->assertSuccessful();
+
+        $this->assertSame('old', Config::get('system.keep'));
+
+        unlink($file);
+    }
+
     public function test_import_command_skips_invalid_entries_and_invalid_json_values(): void
     {
-        $file = sys_get_temp_dir().'/config-store-partial-'.uniqid('', true).'.json';
+        $file = sys_get_temp_dir() . '/config-store-partial-' . uniqid('', true) . '.json';
         file_put_contents($file, json_encode([
             123 => ['ignored' => 'value'],
             'system' => [
@@ -397,7 +425,7 @@ class ConsoleCommandsTest extends TestCase
         $originalDsn = config('database.connections.mongodb.dsn');
         $this->app['config']->set(
             'database.connections.mongodb.dsn',
-            'mongodb://127.0.0.1:65530/?serverSelectionTimeoutMS=500'
+            'mongodb://127.0.0.1:65530/?serverSelectionTimeoutMS=500',
         );
         /** @var DatabaseManager $db */
         $db = $this->app['db'];
@@ -413,5 +441,45 @@ class ConsoleCommandsTest extends TestCase
             $db->purge('mongodb');
             $this->resetConfigStoreService();
         }
+    }
+
+    public function test_import_command_skips_json_scalar_document(): void
+    {
+        $file = sys_get_temp_dir() . '/config-store-scalar-json-' . uniqid('', true) . '.json';
+        file_put_contents($file, json_encode([
+            'system' => [
+                'bad' => [
+                    '__type' => 'json',
+                    '__value' => '"scalar"',
+                ],
+                'ok' => 'kept',
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->artisan('config-store:import', ['file' => $file, '--merge' => true])
+            ->expectsOutputToContain('Skipped system.bad')
+            ->expectsOutputToContain('Imported 1 config value(s).')
+            ->assertSuccessful();
+
+        $this->assertSame('kept', Config::get('system.ok'));
+
+        unlink($file);
+    }
+
+    public function test_doctor_command_passes_when_cache_disabled(): void
+    {
+        $this->app['config']->set('config-store.cache_enabled', false);
+        $this->resetConfigStoreService();
+
+        $this->artisan('config-store:doctor')
+            ->expectsOutputToContain('Config store doctor passed all checks.')
+            ->assertSuccessful();
+    }
+
+    public function test_list_command_reports_empty_store(): void
+    {
+        $this->artisan('config-store:list')
+            ->expectsOutputToContain('No config values found.')
+            ->assertSuccessful();
     }
 }

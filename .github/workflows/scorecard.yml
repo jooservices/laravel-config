@@ -2,6 +2,7 @@ name: OpenSSF Scorecard
 
 on:
   push:
+    # ossf/scorecard-action only supports the repository default branch.
     branches: [master]
   schedule:
     - cron: '0 0 * * 1'
@@ -10,8 +11,6 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
-permissions: read-all
 
 jobs:
   scorecard:
@@ -24,18 +23,19 @@ jobs:
       actions: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Run OpenSSF Scorecard
-        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a
+        uses: ossf/scorecard-action@v2.4.4
         with:
           results_file: results.sarif
           results_format: sarif
           publish_results: true
 
       - name: Upload SARIF results
-        uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: results.sarif
