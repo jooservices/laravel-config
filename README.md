@@ -1,11 +1,14 @@
-# JOOservices Laravel Config
+# jooservices/laravel-config
 
 [![CI](https://github.com/jooservices/laravel-config/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/jooservices/laravel-config/actions/workflows/ci.yml)
+[![Coverage (develop)](https://codecov.io/gh/jooservices/laravel-config/branch/develop/graph/badge.svg)](https://codecov.io/gh/jooservices/laravel-config/branch/develop)
+[![Quality Gate (master)](https://sonarcloud.io/api/project_badges/measure?project=jooservices_laravel-config&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=jooservices_laravel-config)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/jooservices/laravel-config/badge)](https://securityscorecards.dev/viewer/?uri=github.com/jooservices/laravel-config)
 [![PHP Version](https://img.shields.io/badge/PHP-8.5%2B-blue.svg)](https://www.php.net/)
-[![Release](https://img.shields.io/badge/version-4.0.0-blue.svg)](CHANGELOG.md)
+[![GitHub Release](https://img.shields.io/github/v/release/jooservices/laravel-config?display_name=tag)](https://github.com/jooservices/laravel-config/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Packagist Version](https://img.shields.io/packagist/v/jooservices/laravel-config)](https://packagist.org/packages/jooservices/laravel-config)
+[![Total Downloads](https://img.shields.io/packagist/dt/jooservices/laravel-config)](https://packagist.org/packages/jooservices/laravel-config)
 
 MongoDB-backed typed application configuration for Laravel, with optional cache
 and Artisan operator commands.
