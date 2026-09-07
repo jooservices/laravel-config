@@ -29,7 +29,7 @@ See [Branch protection](./07-branch-protection.md). `develop` and `master` requi
 
 ## Scorecard
 
-The OpenSSF Scorecard workflow runs on `master`, on schedule, and on manual dispatch.
+The OpenSSF Scorecard workflow runs on `develop`, on schedule, and on manual dispatch.
 
 ## Local parity
 
