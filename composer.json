@@ -71,6 +71,7 @@
     "scripts": {
         "test": "phpunit -c phpunit.xml",
         "test:coverage": "phpunit -c phpunit.xml --coverage-text --coverage-clover build/coverage/clover.xml --coverage-html build/coverage/html",
+        "coverage:check": "php tools/coverage-enforce.php build/coverage/clover.xml 95",
         "lint:pint": "pint --test",
         "lint:pint:fix": "pint",
         "lint:cs": "php-cs-fixer fix --config=.php-cs-fixer.dist.php --dry-run --diff --sequential",
@@ -95,7 +96,8 @@
         ],
         "ci": [
             "@lint",
-            "@test:coverage"
+            "@test:coverage",
+            "@coverage:check"
         ],
         "post-install-cmd": "captainhook install --force --skip-existing",
         "post-update-cmd": "captainhook install --force --skip-existing",
