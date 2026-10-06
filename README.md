@@ -6,9 +6,9 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/jooservices/laravel-config/badge)](https://securityscorecards.dev/viewer/?uri=github.com/jooservices/laravel-config)
 [![PHP Version](https://img.shields.io/badge/PHP-8.5%2B-blue.svg)](https://www.php.net/)
 [![GitHub Release](https://img.shields.io/github/v/release/jooservices/laravel-config?display_name=tag)](https://github.com/jooservices/laravel-config/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Packagist Version](https://img.shields.io/packagist/v/jooservices/laravel-config)](https://packagist.org/packages/jooservices/laravel-config)
 [![Total Downloads](https://img.shields.io/packagist/dt/jooservices/laravel-config)](https://packagist.org/packages/jooservices/laravel-config)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 MongoDB-backed typed application configuration for Laravel, with optional cache
 and Artisan operator commands.
@@ -17,28 +17,9 @@ Package: `jooservices/laravel-config`
 
 > **`v4.0.0` includes breaking changes from `1.x`.** See [UPGRADE-4.0.md](./UPGRADE-4.0.md).
 
-**Current release: `4.0.0`** · Laravel 12/13 · PHP 8.5+
+**Current release: `4.0.0`** · Laravel 12/13 · PHP `^8.5`
 
-## Install
-
-```bash
-composer require jooservices/laravel-config:^4.0
-```
-
-Publish configuration:
-
-```bash
-php artisan vendor:publish --tag=config-store-config
-```
-
-## Requirements
-
-- PHP 8.5+
-- Laravel 12 or 13 only (Laravel 11 dropped)
-- MongoDB via `mongodb/laravel-mongodb` ^5.7
-- MongoDB PHP extension
-
-## What the package does
+## Features
 
 - stores values as `group`, `key`, `value`, and `type` documents in MongoDB
 - loads a full in-memory map on first read and optionally caches that map
@@ -53,10 +34,26 @@ php artisan vendor:publish --tag=config-store-config
   `--reveal-secrets`
 - `Config::fake()` for consumer-app tests without MongoDB
 
-Prefer `JOOservices\LaravelConfig\Facades\Config` or the `ConfigStore` alias —
-do not bind this package as Laravel’s native `Config`.
+## Requirements
 
-## Quick example
+- PHP `^8.5`
+- Laravel 12 or 13 only (Laravel 11 dropped)
+- MongoDB via `mongodb/laravel-mongodb` ^5.7
+- MongoDB PHP extension
+
+## Installation
+
+```bash
+composer require jooservices/laravel-config:^4.0
+```
+
+Publish configuration:
+
+```bash
+php artisan vendor:publish --tag=config-store-config
+```
+
+## Quick start
 
 ```php
 use JOOservices\LaravelConfig\Facades\Config;
@@ -71,14 +68,19 @@ $system = Config::group('system');
 $fresh = Config::fresh('system.site_name');
 ```
 
-## Path format
+## Design notes
+
+Prefer `JOOservices\LaravelConfig\Facades\Config` or the `ConfigStore` alias —
+do not bind this package as Laravel’s native `Config`.
+
+### Path format
 
 `group.key…` — first segment is the group; the rest (with dots) is the key.
 
 - valid: `system.site_name`, `mail.smtp.host`
 - invalid: `system`, `.system.site_name`, `system.`, `system..site_name`
 
-## Cache and memory behavior
+### Cache and memory behavior
 
 - `get`, `has`, `group`, and `all` load from memory first
 - cold memory reads the cached full map, then MongoDB on miss
@@ -90,7 +92,7 @@ $fresh = Config::fresh('system.site_name');
 Limitations: process-local memory can go stale in long-lived workers; treat the
 shared cache as a trusted boundary; keep collections config-sized.
 
-## MongoDB index
+### MongoDB index
 
 ```bash
 php artisan config-store:ensure-index
@@ -98,7 +100,7 @@ php artisan config-store:ensure-index
 
 Unique compound index on `group` + `key`.
 
-## Artisan commands
+### Artisan commands
 
 ```bash
 php artisan config-store:get system.site_name --default="Default"
@@ -119,7 +121,7 @@ php artisan config-store:ensure-index
 Import: use `--dry-run` to preview. Replace without merge requires `--force`.
 Export/list/get redact encrypted values unless `--reveal-secrets`.
 
-## Security note
+### Security note
 
 Use `ConfigType::Encrypted` for secrets. `ConfigChanged` does not embed
 plaintext for encrypted values. Access control for MongoDB, backups, and the
@@ -153,4 +155,10 @@ MongoDB is required for integration tests.
 
 - [Contributing](./CONTRIBUTING.md)
 - [Security Policy](./SECURITY.md)
-- [License](./LICENSE)
+- [Code of Conduct](./CODE_OF_CONDUCT.md)
+- [Support](./SUPPORT.md)
+- [Governance](./GOVERNANCE.md)
+
+## License
+
+MIT — see [LICENSE](./LICENSE).
